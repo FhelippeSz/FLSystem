@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import {
   LayoutDashboard, ShoppingCart, Wallet, Receipt, LogOut, Lock, User,
   Plus, Minus, X, Check, ArrowLeft, Search, CreditCard, Banknote, QrCode,
-  AlertTriangle, TrendingUp, Package, ListChecks, Printer, Store
+  AlertTriangle, TrendingUp, Package, ListChecks, Printer, Store,
+  UserPlus, KeyRound, HelpCircle, Trash2, Pencil, Ban, CheckCircle2
 } from 'lucide-react';
 
 const C = {
@@ -47,6 +48,10 @@ const PRODUTOS_INICIAIS = [
   { id: 10, nome: 'Biscoito Recheado 130g', preco: 4.3, estoque: 50, categoria: 'Alimentos' },
 ];
 
+const USUARIOS_INICIAIS = [
+  { login: 'admin', senha: 'admin123', pergunta: 'Qual o nome do seu primeiro animal de estimação?', resposta: 'rex' },
+];
+
 const FLOW = [
   { key: 'abrirCaixa', label: 'Abrir Caixa' },
   { key: 'pdv', label: 'PDV' },
@@ -59,6 +64,12 @@ export default function App() {
   const [usuario, setUsuario] = useState({ login: '', senha: '' });
   const [operador, setOperador] = useState(null);
   const [erro, setErro] = useState('');
+  const [msgSucesso, setMsgSucesso] = useState('');
+
+  const [usuarios, setUsuarios] = useState(USUARIOS_INICIAIS);
+  const [authScreen, setAuthScreen] = useState('login'); // login | cadastro | esqueci
+  const [cadastro, setCadastro] = useState({ login: '', senha: '', confirmar: '', pergunta: '', resposta: '' });
+  const [esqueci, setEsqueci] = useState({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' });
 
   const [produtos, setProdutos] = useState(PRODUTOS_INICIAIS);
   const [busca, setBusca] = useState('');
@@ -81,7 +92,7 @@ export default function App() {
 
   const vendasDoTurno = useMemo(() => {
     if (!caixa.dataAbertura) return [];
-    return vendas.filter((v) => v.hora >= caixa.dataAbertura);
+    return vendas.filter((v) => v.hora >= caixa.dataAbertura && !v.cancelada);
   }, [vendas, caixa.dataAbertura]);
 
   const totaisPorForma = useMemo(() => {
@@ -100,19 +111,92 @@ export default function App() {
 
   function handleLogin(e) {
     e.preventDefault();
-    if (!usuario.login.trim() || !usuario.senha.trim()) {
+    const login = usuario.login.trim();
+    if (!login || !usuario.senha.trim()) {
       setErro('Informe usuário e senha.');
       return;
     }
-    setOperador(usuario.login);
+    const user = usuarios.find((u) => u.login.toLowerCase() === login.toLowerCase());
+    if (!user || user.senha !== usuario.senha) {
+      setErro('Usuário ou senha inválidos.');
+      return;
+    }
+    setOperador(user.login);
     setErro('');
+    setMsgSucesso('');
     setScreen('dashboard');
   }
 
   function handleLogout() {
     setOperador(null);
     setUsuario({ login: '', senha: '' });
+    setAuthScreen('login');
+    setErro('');
     setScreen('login');
+  }
+
+  function handleCadastro(e) {
+    e.preventDefault();
+    const { login, senha, confirmar, pergunta, resposta } = cadastro;
+    if (!login.trim() || !senha.trim() || !pergunta.trim() || !resposta.trim()) {
+      setErro('Preencha todos os campos.');
+      return;
+    }
+    if (senha.length < 4) {
+      setErro('A senha deve ter ao menos 4 caracteres.');
+      return;
+    }
+    if (senha !== confirmar) {
+      setErro('As senhas não coincidem.');
+      return;
+    }
+    if (usuarios.some((u) => u.login.toLowerCase() === login.trim().toLowerCase())) {
+      setErro('Já existe um usuário com esse login.');
+      return;
+    }
+    setUsuarios((prev) => [...prev, { login: login.trim(), senha, pergunta: pergunta.trim(), resposta: resposta.trim() }]);
+    setCadastro({ login: '', senha: '', confirmar: '', pergunta: '', resposta: '' });
+    setErro('');
+    setMsgSucesso('Cadastro realizado com sucesso. Faça login.');
+    setAuthScreen('login');
+  }
+
+  function handleEsqueciBuscar(e) {
+    e.preventDefault();
+    const user = usuarios.find((u) => u.login.toLowerCase() === esqueci.login.trim().toLowerCase());
+    if (!user) {
+      setErro('Usuário não encontrado.');
+      return;
+    }
+    setErro('');
+    setEsqueci((prev) => ({ ...prev, etapa: 2, perguntaEncontrada: user.pergunta }));
+  }
+
+  function handleEsqueciConfirmar(e) {
+    e.preventDefault();
+    const user = usuarios.find((u) => u.login.toLowerCase() === esqueci.login.trim().toLowerCase());
+    if (!user) {
+      setErro('Usuário não encontrado.');
+      setEsqueci({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' });
+      return;
+    }
+    if (user.resposta.trim().toLowerCase() !== esqueci.resposta.trim().toLowerCase()) {
+      setErro('Resposta de segurança incorreta.');
+      return;
+    }
+    if (esqueci.novaSenha.length < 4) {
+      setErro('A nova senha deve ter ao menos 4 caracteres.');
+      return;
+    }
+    if (esqueci.novaSenha !== esqueci.confirmar) {
+      setErro('As senhas não coincidem.');
+      return;
+    }
+    setUsuarios((prev) => prev.map((u) => (u.login.toLowerCase() === user.login.toLowerCase() ? { ...u, senha: esqueci.novaSenha } : u)));
+    setEsqueci({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' });
+    setErro('');
+    setMsgSucesso('Senha redefinida com sucesso. Faça login com a nova senha.');
+    setAuthScreen('login');
   }
 
   function handleAbrirCaixa(e) {
@@ -218,6 +302,35 @@ export default function App() {
     setScreen('pdv');
   }
 
+  function adicionarProdutoCadastro(novo) {
+    const id = produtos.length ? Math.max(...produtos.map((p) => p.id)) + 1 : 1;
+    setProdutos((prev) => [...prev, { id, ...novo }]);
+  }
+
+  function editarProduto(id, dados) {
+    setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, ...dados } : p)));
+  }
+
+  function excluirProduto(id) {
+    setProdutos((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  function cancelarVenda(numero) {
+    const venda = vendas.find((v) => v.numero === numero);
+    if (!venda || venda.cancelada) return;
+    setProdutos((prev) =>
+      prev.map((p) => {
+        const item = venda.itens.find((i) => i.id === p.id);
+        return item ? { ...p, estoque: p.estoque + item.qtd } : p;
+      })
+    );
+    setFinanceiro((prev) => [
+      ...prev,
+      { id: prev.length + 1, tipo: `Estorno Venda #${venda.numero}`, valor: -venda.total, hora: Date.now() },
+    ]);
+    setVendas((prev) => prev.map((v) => (v.numero === numero ? { ...v, cancelada: true } : v)));
+  }
+
   function confirmarFechamento(e) {
     e.preventDefault();
     const contado = parseFloat(contagemFechamento.replace(',', '.'));
@@ -247,54 +360,137 @@ export default function App() {
     setScreen('dashboard');
   }
 
-  // ---------- LOGIN ----------
+  // ---------- LOGIN / CADASTRO / ESQUECI SENHA ----------
   if (screen === 'login') {
+    const trocarView = (v) => { setAuthScreen(v); setErro(''); setMsgSucesso(''); };
+
     return (
       <div style={{ minHeight: '100%', background: C.bgDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',sans-serif", padding: 20 }}>
         <style>{FONTS}</style>
-        <form onSubmit={handleLogin} style={{ width: 360, background: C.bgDark2, border: `1px solid ${C.borderDark}`, borderRadius: 14, padding: 32 }}>
+        <div style={{ width: 360, background: C.bgDark2, border: `1px solid ${C.borderDark}`, borderRadius: 14, padding: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <div style={{ width: 36, height: 36, borderRadius: 9, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Store size={19} color={C.bgDark} strokeWidth={2.4} />
             </div>
             <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: C.textLight, letterSpacing: -0.3 }}>PDV Terminal</span>
           </div>
-          <p style={{ color: C.muted, fontSize: 13, marginTop: 4, marginBottom: 26 }}>Acesse com seu usuário operador.</p>
 
-          <label style={{ fontSize: 12, color: C.muted, display: 'block', marginBottom: 6 }}>Usuário</label>
-          <div style={{ position: 'relative', marginBottom: 16 }}>
-            <User size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 12 }} />
-            <input
-              value={usuario.login}
-              onChange={(e) => setUsuario({ ...usuario, login: e.target.value })}
-              placeholder="operador01"
-              style={{ width: '100%', boxSizing: 'border-box', background: C.bgDark3, border: `1px solid ${C.borderDark}`, borderRadius: 8, padding: '10px 12px 10px 36px', color: C.textLight, fontSize: 14, outline: 'none' }}
-            />
-          </div>
-
-          <label style={{ fontSize: 12, color: C.muted, display: 'block', marginBottom: 6 }}>Senha</label>
-          <div style={{ position: 'relative', marginBottom: 22 }}>
-            <Lock size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 12 }} />
-            <input
-              type="password"
-              value={usuario.senha}
-              onChange={(e) => setUsuario({ ...usuario, senha: e.target.value })}
-              placeholder="••••••••"
-              style={{ width: '100%', boxSizing: 'border-box', background: C.bgDark3, border: `1px solid ${C.borderDark}`, borderRadius: 8, padding: '10px 12px 10px 36px', color: C.textLight, fontSize: 14, outline: 'none' }}
-            />
-          </div>
-
-          {erro && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 8, padding: '8px 10px', marginBottom: 16 }}>
-              <AlertTriangle size={14} color={C.danger} />
-              <span style={{ color: '#FCA5A5', fontSize: 12.5 }}>{erro}</span>
+          {msgSucesso && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(45,212,191,0.1)', border: '1px solid rgba(45,212,191,0.35)', borderRadius: 8, padding: '8px 10px', marginTop: 16 }}>
+              <CheckCircle2 size={14} color={C.accent} />
+              <span style={{ color: C.accent, fontSize: 12.5 }}>{msgSucesso}</span>
             </div>
           )}
 
-          <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
-            Entrar
-          </button>
-        </form>
+          {/* ---- LOGIN ---- */}
+          {authScreen === 'login' && (
+            <form onSubmit={handleLogin}>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: msgSucesso ? 14 : 4, marginBottom: 22 }}>Acesse com seu usuário operador.</p>
+
+              <label style={{ fontSize: 12, color: C.muted, display: 'block', marginBottom: 6 }}>Usuário</label>
+              <div style={{ position: 'relative', marginBottom: 16 }}>
+                <User size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 12 }} />
+                <input
+                  value={usuario.login}
+                  onChange={(e) => setUsuario({ ...usuario, login: e.target.value })}
+                  placeholder="admin"
+                  style={inputDarkStyle}
+                />
+              </div>
+
+              <label style={{ fontSize: 12, color: C.muted, display: 'block', marginBottom: 6 }}>Senha</label>
+              <div style={{ position: 'relative', marginBottom: 10 }}>
+                <Lock size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 12 }} />
+                <input
+                  type="password"
+                  value={usuario.senha}
+                  onChange={(e) => setUsuario({ ...usuario, senha: e.target.value })}
+                  placeholder="••••••••"
+                  style={inputDarkStyle}
+                />
+              </div>
+
+              <div style={{ textAlign: 'right', marginBottom: 18 }}>
+                <button type="button" onClick={() => trocarView('esqueci')} style={{ ...btnGhost, color: C.accent, fontSize: 12 }}>
+                  Esqueceu a senha?
+                </button>
+              </div>
+
+              {erro && <ErroBox erro={erro} />}
+
+              <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+                Entrar
+              </button>
+
+              <div style={{ textAlign: 'center', marginTop: 16, fontSize: 12.5, color: C.muted }}>
+                Não tem uma conta?{' '}
+                <button type="button" onClick={() => trocarView('cadastro')} style={{ ...btnGhost, color: C.accent, fontSize: 12.5 }}>
+                  Cadastre-se
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ---- CADASTRO ---- */}
+          {authScreen === 'cadastro' && (
+            <form onSubmit={handleCadastro}>
+              <button type="button" onClick={() => trocarView('login')} style={{ ...btnGhost, color: C.muted, marginTop: 16, marginBottom: 10 }}>
+                <ArrowLeft size={13} /> Voltar
+              </button>
+              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Space Grotesk',sans-serif" }}>Criar conta de operador</p>
+              <p style={{ color: C.muted, fontSize: 12.5, marginTop: 0, marginBottom: 18 }}>A pergunta de segurança é usada para recuperar a senha.</p>
+
+              <FieldDark icon={User} placeholder="Login desejado" value={cadastro.login} onChange={(v) => setCadastro({ ...cadastro, login: v })} />
+              <FieldDark icon={Lock} type="password" placeholder="Senha (mín. 4 caracteres)" value={cadastro.senha} onChange={(v) => setCadastro({ ...cadastro, senha: v })} />
+              <FieldDark icon={Lock} type="password" placeholder="Confirmar senha" value={cadastro.confirmar} onChange={(v) => setCadastro({ ...cadastro, confirmar: v })} />
+              <FieldDark icon={HelpCircle} placeholder="Pergunta de segurança" value={cadastro.pergunta} onChange={(v) => setCadastro({ ...cadastro, pergunta: v })} />
+              <FieldDark icon={KeyRound} placeholder="Resposta" value={cadastro.resposta} onChange={(v) => setCadastro({ ...cadastro, resposta: v })} last />
+
+              {erro && <ErroBox erro={erro} />}
+
+              <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                <UserPlus size={15} /> Cadastrar
+              </button>
+            </form>
+          )}
+
+          {/* ---- ESQUECI A SENHA ---- */}
+          {authScreen === 'esqueci' && (
+            <div>
+              <button type="button" onClick={() => { trocarView('login'); setEsqueci({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' }); }} style={{ ...btnGhost, color: C.muted, marginTop: 16, marginBottom: 10 }}>
+                <ArrowLeft size={13} /> Voltar ao login
+              </button>
+              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Space Grotesk',sans-serif" }}>Recuperar senha</p>
+
+              {esqueci.etapa === 1 && (
+                <form onSubmit={handleEsqueciBuscar}>
+                  <p style={{ color: C.muted, fontSize: 12.5, marginTop: 0, marginBottom: 18 }}>Informe seu login para localizar sua pergunta de segurança.</p>
+                  <FieldDark icon={User} placeholder="Seu login" value={esqueci.login} onChange={(v) => setEsqueci({ ...esqueci, login: v })} last />
+                  {erro && <ErroBox erro={erro} />}
+                  <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+                    Continuar
+                  </button>
+                </form>
+              )}
+
+              {esqueci.etapa === 2 && (
+                <form onSubmit={handleEsqueciConfirmar}>
+                  <div style={{ background: C.bgDark3, borderRadius: 8, padding: '10px 12px', marginBottom: 16, fontSize: 12.5, color: C.textLight }}>
+                    <strong style={{ color: C.muted, fontWeight: 600, display: 'block', fontSize: 11, textTransform: 'uppercase', marginBottom: 4 }}>Pergunta de segurança</strong>
+                    {esqueci.perguntaEncontrada}
+                  </div>
+                  <FieldDark icon={KeyRound} placeholder="Sua resposta" value={esqueci.resposta} onChange={(v) => setEsqueci({ ...esqueci, resposta: v })} />
+                  <FieldDark icon={Lock} type="password" placeholder="Nova senha" value={esqueci.novaSenha} onChange={(v) => setEsqueci({ ...esqueci, novaSenha: v })} />
+                  <FieldDark icon={Lock} type="password" placeholder="Confirmar nova senha" value={esqueci.confirmar} onChange={(v) => setEsqueci({ ...esqueci, confirmar: v })} last />
+                  {erro && <ErroBox erro={erro} />}
+                  <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+                    Redefinir senha
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -303,6 +499,8 @@ export default function App() {
   const navItems = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'pdv', label: 'PDV', icon: ShoppingCart, disabled: !caixa.aberto },
+    { key: 'produtos', label: 'Produtos', icon: Package },
+    { key: 'vendas', label: 'Vendas', icon: ListChecks },
     { key: 'financeiro', label: 'Financeiro', icon: Receipt },
   ];
 
@@ -448,6 +646,12 @@ export default function App() {
             />
           )}
 
+          {screen === 'produtos' && (
+            <ProdutosScreen produtos={produtos} onAdd={adicionarProdutoCadastro} onEdit={editarProduto} onDelete={excluirProduto} />
+          )}
+
+          {screen === 'vendas' && <VendasScreen vendas={vendas} onCancelar={cancelarVenda} />}
+
           {screen === 'financeiro' && <FinanceiroScreen financeiro={financeiro} />}
         </div>
       </div>
@@ -456,6 +660,29 @@ export default function App() {
 }
 
 // ---------- SUBCOMPONENTES ----------
+
+const inputDarkStyle = {
+  width: '100%', boxSizing: 'border-box', background: C.bgDark3, border: `1px solid ${C.borderDark}`,
+  borderRadius: 8, padding: '10px 12px 10px 36px', color: C.textLight, fontSize: 14, outline: 'none',
+};
+
+function FieldDark({ icon: Icon, type = 'text', placeholder, value, onChange, last }) {
+  return (
+    <div style={{ position: 'relative', marginBottom: last ? 18 : 12 }}>
+      <Icon size={16} color={C.muted} style={{ position: 'absolute', left: 12, top: 12 }} />
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={inputDarkStyle} />
+    </div>
+  );
+}
+
+function ErroBox({ erro }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 8, padding: '8px 10px', marginBottom: 16 }}>
+      <AlertTriangle size={14} color={C.danger} />
+      <span style={{ color: '#FCA5A5', fontSize: 12.5 }}>{erro}</span>
+    </div>
+  );
+}
 
 function Card({ children, style }) {
   return <div style={{ background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 12, padding: 18, ...style }}>{children}</div>;
@@ -812,6 +1039,172 @@ function FinanceiroScreen({ financeiro }) {
   );
 }
 
+function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
+  const [novo, setNovo] = useState({ nome: '', categoria: '', preco: '', estoque: '' });
+  const [erroForm, setErroForm] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+
+  function submitNovo(e) {
+    e.preventDefault();
+    const preco = parseFloat(String(novo.preco).replace(',', '.'));
+    const estoque = parseInt(novo.estoque, 10);
+    if (!novo.nome.trim() || !novo.categoria.trim() || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0) {
+      setErroForm('Preencha nome, categoria, preço e estoque corretamente.');
+      return;
+    }
+    onAdd({ nome: novo.nome.trim(), categoria: novo.categoria.trim(), preco, estoque });
+    setNovo({ nome: '', categoria: '', preco: '', estoque: '' });
+    setErroForm('');
+  }
+
+  function iniciarEdicao(p) {
+    setEditId(p.id);
+    setEditValues({ nome: p.nome, categoria: p.categoria, preco: String(p.preco), estoque: String(p.estoque) });
+  }
+
+  function salvarEdicao(id) {
+    const preco = parseFloat(String(editValues.preco).replace(',', '.'));
+    const estoque = parseInt(editValues.estoque, 10);
+    if (!editValues.nome.trim() || !editValues.categoria.trim() || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0) return;
+    onEdit(id, { nome: editValues.nome.trim(), categoria: editValues.categoria.trim(), preco, estoque });
+    setEditId(null);
+  }
+
+  const cellInput = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 7px', fontSize: 12.5, fontFamily: "'Inter',sans-serif" };
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Cadastro de Produtos</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Adicione, edite ou remova itens do catálogo.</p>
+
+      <form onSubmit={submitNovo}>
+        <Card style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Novo produto</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+            <div>
+              <label style={labelSm}>Nome</label>
+              <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Ex: Suco de Laranja 1L" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Categoria</label>
+              <input value={novo.categoria} onChange={(e) => setNovo({ ...novo, categoria: e.target.value })} placeholder="Bebidas" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Preço (R$)</label>
+              <input value={novo.preco} onChange={(e) => setNovo({ ...novo, preco: e.target.value })} placeholder="0,00" inputMode="decimal" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Estoque</label>
+              <input value={novo.estoque} onChange={(e) => setNovo({ ...novo, estoque: e.target.value })} placeholder="0" inputMode="numeric" style={cellInput} />
+            </div>
+            <button type="submit" style={{ ...btnPrimary, height: 33, padding: '0 14px' }}><Plus size={14} /> Adicionar</button>
+          </div>
+          {erroForm && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erroForm}</div>}
+        </Card>
+      </form>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 2 }}>Produto</span>
+          <span style={{ flex: 1 }}>Categoria</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Preço</span>
+          <span style={{ width: 80, textAlign: 'right' }}>Estoque</span>
+          <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
+        </div>
+        {produtos.map((p) => {
+          const editando = editId === p.id;
+          return (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+              {editando ? (
+                <>
+                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 2 }} />
+                  <input value={editValues.categoria} onChange={(e) => setEditValues({ ...editValues, categoria: e.target.value })} style={{ ...cellInput, flex: 1 }} />
+                  <input value={editValues.preco} onChange={(e) => setEditValues({ ...editValues, preco: e.target.value })} style={{ ...cellInput, width: 90 }} />
+                  <input value={editValues.estoque} onChange={(e) => setEditValues({ ...editValues, estoque: e.target.value })} style={{ ...cellInput, width: 80 }} />
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => salvarEdicao(p.id)} style={iconBtn}><Check size={13} color={C.accentDark} /></button>
+                    <button onClick={() => setEditId(null)} style={iconBtn}><X size={13} color={C.muted} /></button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span style={{ flex: 2, fontWeight: 500 }}>{p.nome}</span>
+                  <span style={{ flex: 1, color: C.muted }}>{p.categoria}</span>
+                  <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{fmt(p.preco)}</span>
+                  <span style={{ width: 80, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: p.estoque <= 5 ? C.danger : p.estoque <= 20 ? C.warn : C.textDark }}>{p.estoque}</span>
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => iniciarEdicao(p)} style={iconBtn}><Pencil size={13} color={C.muted} /></button>
+                    <button onClick={() => onDelete(p.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {produtos.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum produto cadastrado.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function VendasScreen({ vendas, onCancelar }) {
+  const [expandido, setExpandido] = useState(null);
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Vendas</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Histórico completo, incluindo turnos anteriores.</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 70 }}>Nº</span>
+          <span style={{ flex: 1 }}>Forma / Hora</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Total</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Status</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Ação</span>
+        </div>
+        {vendas.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma venda registrada ainda.</div>}
+        {[...vendas].reverse().map((v) => {
+          const aberto = expandido === v.numero;
+          return (
+            <div key={v.numero} style={{ borderTop: `1px solid ${C.borderLight}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', fontSize: 13 }}>
+                <button onClick={() => setExpandido(aberto ? null : v.numero)} style={{ width: 70, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.textDark, padding: 0 }}>
+                  #{String(v.numero).padStart(4, '0')}
+                </button>
+                <span style={{ flex: 1, color: C.muted, fontSize: 12.5 }}>{v.forma} · {dataHora(v.hora)}</span>
+                <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, textDecoration: v.cancelada ? 'line-through' : 'none', color: v.cancelada ? C.muted : C.textDark }}>{fmt(v.total)}</span>
+                <span style={{ width: 100, textAlign: 'right' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: v.cancelada ? C.dangerBg : 'rgba(45,212,191,0.12)', color: v.cancelada ? C.danger : C.accentDark }}>
+                    {v.cancelada ? 'Cancelada' : 'Concluída'}
+                  </span>
+                </span>
+                <span style={{ width: 90, textAlign: 'right' }}>
+                  {!v.cancelada && (
+                    <button onClick={() => onCancelar(v.numero)} style={{ ...btnGhost, color: C.danger, fontSize: 11.5, justifyContent: 'flex-end', width: '100%' }}>
+                      <Ban size={12} /> Cancelar
+                    </button>
+                  )}
+                </span>
+              </div>
+              {aberto && (
+                <div style={{ padding: '0 16px 12px 86px' }}>
+                  {v.itens.map((i) => (
+                    <div key={i.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted, padding: '2px 0' }}>
+                      <span>{i.qtd}x {i.nome}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{fmt(i.preco * i.qtd)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
 // ---------- ESTILOS COMPARTILHADOS ----------
 const btnPrimary = {
   display: 'inline-flex', alignItems: 'center', gap: 7, background: C.accent, color: C.bgDark, border: 'none',
@@ -832,3 +1225,8 @@ const qtyBtn = {
   width: 20, height: 20, borderRadius: 5, border: `1px solid ${C.borderLight}`, background: C.bgLight, display: 'flex',
   alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.textDark, flexShrink: 0,
 };
+const iconBtn = {
+  width: 24, height: 24, borderRadius: 6, border: `1px solid ${C.borderLight}`, background: C.panel, display: 'flex',
+  alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+};
+const labelSm = { fontSize: 10.5, color: C.muted, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 };
