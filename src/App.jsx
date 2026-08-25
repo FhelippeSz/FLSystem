@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -10,49 +10,140 @@ import {
   AlertTriangle, TrendingUp, Package, ListChecks, Printer, Store,
   UserPlus, KeyRound, HelpCircle, Trash2, Pencil, Ban, CheckCircle2,
   BarChart3, ArrowDownCircle, Settings, Calendar, CalendarDays, CalendarRange,
-  Barcode, ScanLine, LayoutGrid, Clock
+  Barcode, ScanLine, LayoutGrid, Clock, ClipboardList, Truck, ChevronDown,
+  ChevronRight, PackageSearch, SlidersHorizontal, BellRing, ShoppingBag, History
 } from 'lucide-react';
 
 const C = {
-  bgDark: '#14161A',
-  bgDark2: '#1B1E24',
-  bgDark3: '#22262E',
-  bgLight: '#F3F4F1',
+  bgDark: '#131320',
+  bgDark2: '#1B1B2C',
+  bgDark3: '#242438',
+  bgLight: '#F6F6FB',
   panel: '#FFFFFF',
   accent: '#2DD4BF',
   accentDark: '#0F9C8C',
   accentGlow: 'rgba(45,212,191,0.35)',
+  primary: '#6D5DF6',
+  primaryDark: '#5646D8',
+  primarySoft: '#EFEDFF',
+  primaryGlow: 'rgba(109,93,246,0.35)',
   danger: '#EF4444',
   dangerBg: '#FEF2F2',
   warn: '#F59E0B',
   warnBg: '#FFFBEB',
-  textDark: '#181B20',
-  textLight: '#F5F6F4',
-  muted: '#8A93A3',
-  mutedDark: '#5B6472',
-  borderDark: '#2A2E37',
-  borderLight: '#E4E6E1',
+  textDark: '#16151F',
+  textLight: '#F5F5FA',
+  muted: '#8B8DA0',
+  mutedDark: '#63647A',
+  borderDark: '#2E2E44',
+  borderLight: '#ECECF3',
 };
 
 const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 * { box-sizing: border-box; }
-button { font-family: inherit; transition: filter 0.15s ease, transform 0.12s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
+html, body { scroll-behavior: smooth; }
+button { font-family: inherit; transition: filter 0.15s ease, transform 0.12s cubic-bezier(.34,1.56,.64,1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
 button:not(:disabled):hover { filter: brightness(1.06); }
-button:not(:disabled):active { transform: scale(0.97); }
-input, select { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
-input:focus, select:focus { border-color: ${C.accentDark} !important; box-shadow: 0 0 0 3px ${C.accentGlow}; }
-.nav-btn:not(:disabled):hover { background: ${C.bgDark3} !important; color: ${C.textLight} !important; }
-.prod-card:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(20,22,26,0.10); border-color: ${C.accentDark}66 !important; }
+button:not(:disabled):active { transform: scale(0.96); }
+input, select { transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease; }
+input:focus, select:focus { border-color: ${C.primaryDark} !important; box-shadow: 0 0 0 3px ${C.primaryGlow}; }
+.nav-btn { position: relative; }
+.nav-btn:not(:disabled):hover { background: ${C.primarySoft} !important; color: ${C.primaryDark} !important; }
+.nav-btn:not(:disabled):hover svg { transform: scale(1.1); }
+.nav-btn svg { transition: transform 0.2s cubic-bezier(.34,1.56,.64,1); }
+.prod-card { transition: transform 0.22s cubic-bezier(.22,1,.36,1), box-shadow 0.22s ease, border-color 0.22s ease; }
+.prod-card:not(:disabled):hover { transform: translateY(-3px) scale(1.015); box-shadow: 0 14px 28px rgba(30,20,60,0.10); border-color: ${C.primaryDark}55 !important; }
+.prod-card:not(:disabled):active { transform: translateY(-1px) scale(0.99); }
+.table-row { transition: background 0.15s ease; }
 .table-row:hover { background: ${C.bgLight}; }
+.card-hover { transition: transform 0.22s cubic-bezier(.22,1,.36,1), box-shadow 0.22s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(30,20,60,0.08); }
 .scroll-thin::-webkit-scrollbar { width: 7px; height: 7px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: ${C.borderLight}; border-radius: 99px; }
-@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in { animation: fadeSlideIn 0.28s ease; }
-@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
-.toast-anim { animation: toastIn 0.25s ease; }
+.scroll-thin::-webkit-scrollbar-thumb:hover { background: ${C.mutedDark}; }
+
+@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeSlideIn 0.32s cubic-bezier(.22,1,.36,1); }
+
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 14px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+.toast-anim { animation: toastIn 0.3s cubic-bezier(.34,1.56,.64,1); }
+
+@keyframes popIn { from { opacity: 0; transform: scale(0.92) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.pop-in { animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1) both; }
+
+@keyframes staggerIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.stagger > * { animation: staggerIn 0.4s cubic-bezier(.22,1,.36,1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(n+7) { animation-delay: 0.26s; }
+
+@keyframes pulseDot { 0% { box-shadow: 0 0 0 0 ${C.accentGlow}; } 70% { box-shadow: 0 0 0 7px rgba(45,212,191,0); } 100% { box-shadow: 0 0 0 0 rgba(45,212,191,0); } }
+.pulse-dot { animation: pulseDot 2s cubic-bezier(.4,0,.6,1) infinite; }
+
+@keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.gradient-bg {
+  background: linear-gradient(120deg, ${C.bgDark} 0%, #2c204f 25%, ${C.bgDark} 50%, #143733 75%, ${C.bgDark} 100%);
+  background-size: 300% 300%;
+  animation: gradientMove 14s ease infinite;
+}
+
+@keyframes floatBlob { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-24px) scale(1.08); } 66% { transform: translate(-16px,14px) scale(0.94); } }
+.blob { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.35; animation: floatBlob 12s ease-in-out infinite; pointer-events: none; }
+
+.ripple { position: relative; overflow: hidden; }
+@keyframes rippleAnim { from { width: 0; height: 0; opacity: 0.45; } to { width: 340px; height: 340px; opacity: 0; } }
+.ripple.rippling::after {
+  content: ''; position: absolute; left: var(--rx, 50%); top: var(--ry, 50%); width: 0; height: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.65), rgba(255,255,255,0) 70%);
+  border-radius: 50%; transform: translate(-50%, -50%); animation: rippleAnim 0.55s ease-out; pointer-events: none;
+}
+
+.accordion-body { overflow: hidden; transition: max-height 0.32s cubic-bezier(.22,1,.36,1), opacity 0.25s ease; }
+
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spinSlow 6s linear infinite; }
+
+@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+.skeleton { background: linear-gradient(90deg, ${C.bgLight} 25%, #ececea 37%, ${C.bgLight} 63%); background-size: 400px 100%; animation: shimmer 1.4s ease infinite; }
 `;
+
+function rippleEffect(e) {
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  btn.style.setProperty('--rx', `${e.clientX - rect.left}px`);
+  btn.style.setProperty('--ry', `${e.clientY - rect.top}px`);
+  btn.classList.remove('rippling');
+  void btn.offsetWidth;
+  btn.classList.add('rippling');
+}
+
+function AnimatedNumber({ value, formatter = (v) => v, duration = 550 }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = value;
+    if (from === to) { setDisplay(to); return; }
+    const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(from + (to - from) * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else prevRef.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return <>{formatter(display)}</>;
+}
 
 const fmt = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const hora = (d) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -129,16 +220,21 @@ function gerarPayloadPix({ chave, nome, cidade, valor, txid }) {
 }
 
 const PRODUTOS_INICIAIS = [
-  { id: 1, nome: 'Água Mineral 500ml', preco: 3.5, estoque: 48, categoria: 'Bebidas', codigoBarras: '7891000000013' },
-  { id: 2, nome: 'Refrigerante Lata 350ml', preco: 5.0, estoque: 36, categoria: 'Bebidas', codigoBarras: '7891000000020' },
-  { id: 3, nome: 'Café Torrado 500g', preco: 18.9, estoque: 20, categoria: 'Alimentos', codigoBarras: '7891000000037' },
-  { id: 4, nome: 'Arroz Branco 1kg', preco: 7.2, estoque: 40, categoria: 'Alimentos', codigoBarras: '7891000000044' },
-  { id: 5, nome: 'Feijão Carioca 1kg', preco: 8.5, estoque: 35, categoria: 'Alimentos', codigoBarras: '7891000000051' },
-  { id: 6, nome: 'Sabonete 90g', preco: 2.8, estoque: 60, categoria: 'Higiene', codigoBarras: '7891000000068' },
-  { id: 7, nome: 'Papel Higiênico 4un', preco: 9.9, estoque: 25, categoria: 'Higiene', codigoBarras: '7891000000075' },
-  { id: 8, nome: 'Detergente 500ml', preco: 3.2, estoque: 30, categoria: 'Limpeza', codigoBarras: '7891000000082' },
-  { id: 9, nome: 'Sabão em Pó 1kg', preco: 12.5, estoque: 18, categoria: 'Limpeza', codigoBarras: '7891000000099' },
-  { id: 10, nome: 'Biscoito Recheado 130g', preco: 4.3, estoque: 50, categoria: 'Alimentos', codigoBarras: '7891000000105' },
+  { id: 1, nome: 'Água Mineral 500ml', preco: 3.5, custo: 1.8, estoque: 48, estoqueMinimo: 15, categoria: 'Bebidas', codigoBarras: '7891000000013' },
+  { id: 2, nome: 'Refrigerante Lata 350ml', preco: 5.0, custo: 2.6, estoque: 36, estoqueMinimo: 15, categoria: 'Bebidas', codigoBarras: '7891000000020' },
+  { id: 3, nome: 'Café Torrado 500g', preco: 18.9, custo: 11.5, estoque: 20, estoqueMinimo: 10, categoria: 'Alimentos', codigoBarras: '7891000000037' },
+  { id: 4, nome: 'Arroz Branco 1kg', preco: 7.2, custo: 4.3, estoque: 40, estoqueMinimo: 15, categoria: 'Alimentos', codigoBarras: '7891000000044' },
+  { id: 5, nome: 'Feijão Carioca 1kg', preco: 8.5, custo: 5.2, estoque: 35, estoqueMinimo: 15, categoria: 'Alimentos', codigoBarras: '7891000000051' },
+  { id: 6, nome: 'Sabonete 90g', preco: 2.8, custo: 1.3, estoque: 60, estoqueMinimo: 20, categoria: 'Higiene', codigoBarras: '7891000000068' },
+  { id: 7, nome: 'Papel Higiênico 4un', preco: 9.9, custo: 6.0, estoque: 25, estoqueMinimo: 10, categoria: 'Higiene', codigoBarras: '7891000000075' },
+  { id: 8, nome: 'Detergente 500ml', preco: 3.2, custo: 1.7, estoque: 30, estoqueMinimo: 15, categoria: 'Limpeza', codigoBarras: '7891000000082' },
+  { id: 9, nome: 'Sabão em Pó 1kg', preco: 12.5, custo: 7.8, estoque: 18, estoqueMinimo: 10, categoria: 'Limpeza', codigoBarras: '7891000000099' },
+  { id: 10, nome: 'Biscoito Recheado 130g', preco: 4.3, custo: 2.4, estoque: 50, estoqueMinimo: 15, categoria: 'Alimentos', codigoBarras: '7891000000105' },
+];
+
+const FORNECEDORES_INICIAIS = [
+  { id: 1, nome: 'Distribuidora X', contato: 'Carlos Souza', telefone: '(11) 98888-1234', cnpj: '12.345.678/0001-90' },
+  { id: 2, nome: 'Atacado Bebidas Sul', contato: 'Marina Alves', telefone: '(11) 97777-5678', cnpj: '98.765.432/0001-10' },
 ];
 
 const USUARIOS_INICIAIS = [
@@ -192,6 +288,11 @@ export default function App() {
   const [ultimaVenda, setUltimaVenda] = useState(null);
   const [financeiro, setFinanceiro] = useState([]);
   const [sangrias, setSangrias] = useState([]);
+  const [fornecedores, setFornecedores] = useState(FORNECEDORES_INICIAIS);
+  const [compras, setCompras] = useState([]);
+  const [movimentos, setMovimentos] = useState([]);
+  const [grupoEstoqueAberto, setGrupoEstoqueAberto] = useState(true);
+  const [grupoComprasAberto, setGrupoComprasAberto] = useState(false);
   const [contagemFechamento, setContagemFechamento] = useState('');
   const [ultimoFechamento, setUltimoFechamento] = useState(null);
 
@@ -410,6 +511,10 @@ export default function App() {
     setScreen('pagamento');
   }
 
+  function registrarMovimento({ tipo, produtoId, produtoNome, quantidade, motivo }) {
+    setMovimentos((prev) => [...prev, { id: prev.length + 1, tipo, produtoId, produtoNome, quantidade, motivo, hora: Date.now(), operador }]);
+  }
+
   function confirmarPagamento() {
     if (!pagamento.forma) {
       setErro('Selecione a forma de pagamento.');
@@ -445,6 +550,7 @@ export default function App() {
         return item ? { ...p, estoque: p.estoque - item.qtd } : p;
       })
     );
+    carrinho.forEach((i) => registrarMovimento({ tipo: 'Venda', produtoId: i.id, produtoNome: i.nome, quantidade: -i.qtd, motivo: `Venda #${String(numero).padStart(4, '0')}` }));
 
     // Registrar financeiro
     setFinanceiro((prev) => [
@@ -493,6 +599,7 @@ export default function App() {
       ...prev,
       { id: prev.length + 1, tipo: `Estorno Venda #${venda.numero}`, valor: -venda.total, hora: Date.now() },
     ]);
+    venda.itens.forEach((i) => registrarMovimento({ tipo: 'Estorno', produtoId: i.id, produtoNome: i.nome, quantidade: i.qtd, motivo: `Cancelamento Venda #${String(numero).padStart(4, '0')}` }));
     setVendas((prev) => prev.map((v) => (v.numero === numero ? { ...v, cancelada: true } : v)));
     showToast(`Venda #${String(numero).padStart(4, '0')} cancelada`, 'alerta');
   }
@@ -512,6 +619,74 @@ export default function App() {
     setSangriaInput({ valor: '', motivo: '' });
     setErro('');
     showToast('Sangria registrada');
+  }
+
+  function confirmarCompra({ fornecedorId, itens, frete, desconto }) {
+    const fornecedor = fornecedores.find((f) => f.id === fornecedorId);
+    const subtotal = itens.reduce((s, i) => s + i.qtd * i.custo, 0);
+    const total = Math.max(subtotal + (frete || 0) - (desconto || 0), 0);
+    const numero = compras.length + 1;
+    const itensCompra = itens.map((i) => {
+      const p = produtos.find((pp) => pp.id === i.produtoId);
+      return { ...i, nome: p ? p.nome : '?' };
+    });
+    const compra = {
+      numero, fornecedorId, fornecedorNome: fornecedor ? fornecedor.nome : 'Não informado',
+      itens: itensCompra, subtotal, frete: frete || 0, desconto: desconto || 0, total, hora: Date.now(), operador,
+    };
+
+    setProdutos((prev) =>
+      prev.map((p) => {
+        const item = itens.find((i) => i.produtoId === p.id);
+        return item ? { ...p, estoque: p.estoque + item.qtd, custo: item.custo } : p;
+      })
+    );
+    itensCompra.forEach((i) => registrarMovimento({ tipo: 'Compra', produtoId: i.produtoId, produtoNome: i.nome, quantidade: i.qtd, motivo: `Compra #${String(numero).padStart(4, '0')} · ${compra.fornecedorNome}` }));
+    setFinanceiro((prev) => [
+      ...prev,
+      { id: prev.length + 1, tipo: `Compra #${numero} (${compra.fornecedorNome})`, valor: -total, hora: compra.hora },
+    ]);
+    setCompras((prev) => [...prev, compra]);
+    showToast('Compra registrada — estoque e custo atualizados');
+    setScreen('historicoCompras');
+  }
+
+  function adicionarFornecedor(f) {
+    const id = fornecedores.length ? Math.max(...fornecedores.map((x) => x.id)) + 1 : 1;
+    setFornecedores((prev) => [...prev, { id, ...f }]);
+    showToast('Fornecedor cadastrado');
+  }
+
+  function editarFornecedor(id, dados) {
+    setFornecedores((prev) => prev.map((f) => (f.id === id ? { ...f, ...dados } : f)));
+    showToast('Fornecedor atualizado');
+  }
+
+  function excluirFornecedor(id) {
+    setFornecedores((prev) => prev.filter((f) => f.id !== id));
+    showToast('Fornecedor removido', 'alerta');
+  }
+
+  function ajustarEstoque({ produtoId, quantidade, motivo }) {
+    const produto = produtos.find((p) => p.id === produtoId);
+    if (!produto || !quantidade) return;
+    setProdutos((prev) => prev.map((p) => (p.id === produtoId ? { ...p, estoque: Math.max(0, p.estoque + quantidade) } : p)));
+    registrarMovimento({ tipo: 'Ajuste', produtoId, produtoNome: produto.nome, quantidade, motivo: motivo || 'Ajuste manual' });
+    showToast('Estoque ajustado');
+  }
+
+  function aplicarInventario(contagens) {
+    let houveAjuste = false;
+    Object.entries(contagens).forEach(([pid, qtdContada]) => {
+      const produto = produtos.find((p) => p.id === Number(pid));
+      if (!produto) return;
+      const diff = qtdContada - produto.estoque;
+      if (diff === 0) return;
+      houveAjuste = true;
+      registrarMovimento({ tipo: 'Inventário', produtoId: Number(pid), produtoNome: produto.nome, quantidade: diff, motivo: 'Contagem física (inventário)' });
+    });
+    setProdutos((prev) => prev.map((p) => (contagens[p.id] !== undefined ? { ...p, estoque: contagens[p.id] } : p)));
+    showToast(houveAjuste ? 'Inventário aplicado — estoque atualizado' : 'Nenhuma divergência encontrada');
   }
 
   function imprimirCupomTermico(venda) {
@@ -593,14 +768,16 @@ export default function App() {
     const trocarView = (v) => { setAuthScreen(v); setErro(''); setMsgSucesso(''); };
 
     return (
-      <div style={{ minHeight: '100%', background: C.bgDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',sans-serif", padding: 20 }}>
+      <div className="gradient-bg" style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',sans-serif", padding: 20, position: 'relative', overflow: 'hidden' }}>
         <style>{FONTS}</style>
-        <div style={{ width: 360, background: C.bgDark2, border: `1px solid ${C.borderDark}`, borderRadius: 14, padding: 32 }}>
+        <div className="blob" style={{ width: 320, height: 320, background: C.primary, top: '10%', left: '8%' }} />
+        <div className="blob" style={{ width: 260, height: 260, background: C.accent, bottom: '8%', right: '10%', animationDelay: '3s' }} />
+        <div className="pop-in" style={{ width: 360, background: C.bgDark2, border: `1px solid ${C.borderDark}`, borderRadius: 14, padding: 32, position: 'relative', zIndex: 1, boxShadow: '0 30px 60px rgba(0,0,0,0.35)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Store size={19} color={C.bgDark} strokeWidth={2.4} />
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Store size={19} color={C.textLight} strokeWidth={2.4} />
             </div>
-            <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: C.textLight, letterSpacing: -0.3 }}>PDV Terminal</span>
+            <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, fontSize: 20, color: C.textLight, letterSpacing: -0.3 }}>PDV Terminal</span>
           </div>
 
           {msgSucesso && (
@@ -646,7 +823,7 @@ export default function App() {
 
               {erro && <ErroBox erro={erro} />}
 
-              <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+              <button type="submit" onMouseDown={rippleEffect} className="ripple" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                 Entrar
               </button>
 
@@ -665,7 +842,7 @@ export default function App() {
               <button type="button" onClick={() => trocarView('login')} style={{ ...btnGhost, color: C.muted, marginTop: 16, marginBottom: 10 }}>
                 <ArrowLeft size={13} /> Voltar
               </button>
-              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Space Grotesk',sans-serif" }}>Criar conta de operador</p>
+              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Criar conta de operador</p>
               <p style={{ color: C.muted, fontSize: 12.5, marginTop: 0, marginBottom: 18 }}>A pergunta de segurança é usada para recuperar a senha.</p>
 
               <FieldDark icon={User} placeholder="Login desejado" value={cadastro.login} onChange={(v) => setCadastro({ ...cadastro, login: v })} />
@@ -676,7 +853,7 @@ export default function App() {
 
               {erro && <ErroBox erro={erro} />}
 
-              <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+              <button type="submit" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                 <UserPlus size={15} /> Cadastrar
               </button>
             </form>
@@ -688,14 +865,14 @@ export default function App() {
               <button type="button" onClick={() => { trocarView('login'); setEsqueci({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' }); }} style={{ ...btnGhost, color: C.muted, marginTop: 16, marginBottom: 10 }}>
                 <ArrowLeft size={13} /> Voltar ao login
               </button>
-              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Space Grotesk',sans-serif" }}>Recuperar senha</p>
+              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Recuperar senha</p>
 
               {esqueci.etapa === 1 && (
                 <form onSubmit={handleEsqueciBuscar}>
                   <p style={{ color: C.muted, fontSize: 12.5, marginTop: 0, marginBottom: 18 }}>Informe seu login para localizar sua pergunta de segurança.</p>
                   <FieldDark icon={User} placeholder="Seu login" value={esqueci.login} onChange={(v) => setEsqueci({ ...esqueci, login: v })} last />
                   {erro && <ErroBox erro={erro} />}
-                  <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+                  <button type="submit" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                     Continuar
                   </button>
                 </form>
@@ -711,7 +888,7 @@ export default function App() {
                   <FieldDark icon={Lock} type="password" placeholder="Nova senha" value={esqueci.novaSenha} onChange={(v) => setEsqueci({ ...esqueci, novaSenha: v })} />
                   <FieldDark icon={Lock} type="password" placeholder="Confirmar nova senha" value={esqueci.confirmar} onChange={(v) => setEsqueci({ ...esqueci, confirmar: v })} last />
                   {erro && <ErroBox erro={erro} />}
-                  <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+                  <button type="submit" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                     Redefinir senha
                   </button>
                 </form>
@@ -724,11 +901,24 @@ export default function App() {
   }
 
   // ---------- SHELL (post-login) ----------
-  const navItems = [
+  const navItemsTop = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'pdv', label: 'PDV', icon: ShoppingCart, disabled: !caixa.aberto },
-    { key: 'relatorios', label: 'Relatórios', icon: BarChart3 },
+  ];
+  const estoqueItems = [
     { key: 'produtos', label: 'Produtos', icon: Package },
+    { key: 'movimentacoes', label: 'Movimentações', icon: History },
+    { key: 'inventario', label: 'Inventário', icon: ClipboardList },
+    { key: 'ajusteEstoque', label: 'Ajuste de Estoque', icon: SlidersHorizontal },
+    { key: 'alertasEstoque', label: 'Alertas de Estoque', icon: BellRing },
+  ];
+  const comprasItems = [
+    { key: 'novaCompra', label: 'Nova Compra', icon: Plus },
+    { key: 'historicoCompras', label: 'Histórico', icon: ListChecks },
+    { key: 'fornecedores', label: 'Fornecedores', icon: ShoppingBag },
+  ];
+  const navItemsBottom = [
+    { key: 'relatorios', label: 'Relatórios', icon: BarChart3 },
     { key: 'vendas', label: 'Vendas', icon: ListChecks },
     { key: 'financeiro', label: 'Financeiro', icon: Receipt },
   ];
@@ -737,6 +927,82 @@ export default function App() {
     { key: 'fecharCaixa', label: 'Fechar Caixa', icon: Wallet, disabled: !caixa.aberto, danger: true },
   ];
 
+  const estoqueKeys = estoqueItems.map((i) => i.key);
+  const comprasKeys = comprasItems.map((i) => i.key);
+  const estoqueAtivo = estoqueKeys.includes(screen);
+  const comprasAtivo = comprasKeys.includes(screen);
+  const alertasEstoqueCount = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10)).length;
+
+  function renderNavBtn(item) {
+    const Icon = item.icon;
+    const active = screen === item.key || (item.key === 'pdv' && ['pdv', 'pagamento', 'cupom', 'abrirCaixa'].includes(screen));
+    return (
+      <button
+        key={item.key}
+        className="nav-btn"
+        disabled={item.disabled}
+        onClick={() => { setErro(''); setScreen(item.key); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, border: 'none',
+          background: active ? C.primarySoft : 'transparent',
+          color: item.disabled ? C.mutedDark : active ? C.primaryDark : C.muted,
+          fontSize: 13.5, fontWeight: active ? 600 : 500, cursor: item.disabled ? 'not-allowed' : 'pointer', textAlign: 'left',
+        }}
+      >
+        <Icon size={16} strokeWidth={2} />
+        {item.label}
+      </button>
+    );
+  }
+
+  function renderSubNavBtn(item) {
+    const Icon = item.icon;
+    const active = screen === item.key;
+    return (
+      <button
+        key={item.key}
+        className="nav-btn"
+        onClick={() => { setErro(''); setScreen(item.key); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 9, padding: '7px 12px 7px 30px', borderRadius: 9, border: 'none',
+          background: active ? C.primarySoft : 'transparent', color: active ? C.primaryDark : C.muted,
+          fontSize: 12.5, fontWeight: active ? 600 : 500, cursor: 'pointer', textAlign: 'left', position: 'relative',
+        }}
+      >
+        {active && <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 4, height: 4, borderRadius: 99, background: C.primary }} />}
+        <Icon size={13} strokeWidth={2} />
+        {item.label}
+        {item.key === 'alertasEstoque' && alertasEstoqueCount > 0 && (
+          <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, background: C.danger, color: '#fff', borderRadius: 99, padding: '1px 6px' }}>{alertasEstoqueCount}</span>
+        )}
+      </button>
+    );
+  }
+
+  function GrupoNav({ label, Icon, aberto, ativo, onToggle, itens }) {
+    const mostrarAberto = aberto || ativo;
+    return (
+      <div>
+        <button
+          className="nav-btn"
+          onClick={onToggle}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, border: 'none',
+            background: ativo && !aberto ? C.primarySoft : 'transparent', color: ativo ? C.primaryDark : C.muted,
+            fontSize: 13.5, fontWeight: ativo ? 600 : 500, cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <Icon size={16} strokeWidth={2} />
+          {label}
+          <ChevronDown size={14} style={{ marginLeft: 'auto', transition: 'transform 0.25s cubic-bezier(.22,1,.36,1)', transform: mostrarAberto ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+        </button>
+        <div className="accordion-body" style={{ maxHeight: mostrarAberto ? itens.length * 34 + 8 : 0, opacity: mostrarAberto ? 1 : 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 1 }}>{itens.map(renderSubNavBtn)}</div>
+        </div>
+      </div>
+    );
+  }
+
   const stepIdx = FLOW.findIndex((f) => f.key === screen);
 
   return (
@@ -744,50 +1010,39 @@ export default function App() {
       <style>{FONTS}</style>
 
       {/* SIDEBAR */}
-      <div style={{ width: 208, background: C.bgDark, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      <div style={{ width: 216, background: C.panel, display: 'flex', flexDirection: 'column', flexShrink: 0, borderRight: `1px solid ${C.borderLight}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '20px 18px 16px' }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Store size={16} color={C.bgDark} strokeWidth={2.4} />
+          <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(109,93,246,0.35)' }}>
+            <Store size={16} color="#fff" strokeWidth={2.4} />
           </div>
-          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 15.5, color: C.textLight }}>PDV Terminal</span>
+          <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, fontSize: 15.5, color: C.textDark }}>PDV Terminal</span>
         </div>
 
-        <div style={{ margin: '4px 14px 18px', padding: '9px 12px', borderRadius: 9, background: caixa.aberto ? 'rgba(45,212,191,0.12)' : C.bgDark2, border: `1px solid ${caixa.aberto ? 'rgba(45,212,191,0.4)' : C.borderDark}` }}>
+        <div style={{ margin: '4px 14px 18px', padding: '9px 12px', borderRadius: 11, background: caixa.aberto ? 'rgba(45,212,191,0.10)' : C.bgLight, border: `1px solid ${caixa.aberto ? 'rgba(45,212,191,0.35)' : C.borderLight}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 99, background: caixa.aberto ? C.accent : C.mutedDark, boxShadow: caixa.aberto ? `0 0 6px ${C.accent}` : 'none' }} />
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: caixa.aberto ? C.accent : C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            <span className={caixa.aberto ? 'pulse-dot' : ''} style={{ width: 7, height: 7, borderRadius: 99, background: caixa.aberto ? C.accent : C.mutedDark, boxShadow: caixa.aberto ? `0 0 6px ${C.accent}` : 'none' }} />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: caixa.aberto ? C.accentDark : C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
               Caixa {caixa.aberto ? 'Aberto' : 'Fechado'}
             </span>
           </div>
           {caixa.aberto && (
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: C.textLight, marginTop: 4 }}>{fmt(valorEsperadoCaixa)}</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: C.textDark, marginTop: 4, fontWeight: 600 }}>{fmt(valorEsperadoCaixa)}</div>
           )}
         </div>
 
-        <div style={{ flex: 1, padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2, overflow: 'auto' }}>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = screen === item.key || (item.key === 'pdv' && ['pdv', 'pagamento', 'cupom', 'abrirCaixa'].includes(screen));
-            return (
-              <button
-                key={item.key}
-                className="nav-btn"
-                disabled={item.disabled}
-                onClick={() => { setErro(''); setScreen(item.key); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none',
-                  background: active ? C.bgDark2 : 'transparent',
-                  color: item.disabled ? C.mutedDark : active ? C.textLight : C.muted,
-                  fontSize: 13.5, fontWeight: 500, cursor: item.disabled ? 'not-allowed' : 'pointer', textAlign: 'left',
-                }}
-              >
-                <Icon size={16} strokeWidth={2} />
-                {item.label}
-              </button>
-            );
-          })}
+        <div className="scroll-thin" style={{ flex: 1, padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2, overflow: 'auto' }}>
+          {navItemsTop.map(renderNavBtn)}
 
-          <div style={{ height: 1, background: C.borderDark, margin: '8px 2px' }} />
+          <div style={{ height: 1, background: C.borderLight, margin: '6px 2px' }} />
+
+          <GrupoNav label="Estoque" Icon={Package} aberto={grupoEstoqueAberto} ativo={estoqueAtivo} onToggle={() => setGrupoEstoqueAberto((v) => !v)} itens={estoqueItems} />
+          <GrupoNav label="Compras" Icon={Truck} aberto={grupoComprasAberto} ativo={comprasAtivo} onToggle={() => setGrupoComprasAberto((v) => !v)} itens={comprasItems} />
+
+          <div style={{ height: 1, background: C.borderLight, margin: '6px 2px' }} />
+
+          {navItemsBottom.map(renderNavBtn)}
+
+          <div style={{ height: 1, background: C.borderLight, margin: '8px 2px' }} />
 
           {navItemsCaixa.map((item) => {
             const Icon = item.icon;
@@ -799,9 +1054,9 @@ export default function App() {
                 disabled={item.disabled}
                 onClick={() => { setErro(''); if (item.key === 'fecharCaixa') setContagemFechamento(''); setScreen(item.key); }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none',
-                  background: active ? C.bgDark2 : 'transparent',
-                  color: item.disabled ? C.mutedDark : active ? (item.danger ? '#FCA5A5' : C.textLight) : (item.danger ? '#E88A8A' : C.muted),
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, border: 'none',
+                  background: active ? (item.danger ? C.dangerBg : C.primarySoft) : 'transparent',
+                  color: item.disabled ? C.mutedDark : active ? (item.danger ? C.danger : C.primaryDark) : (item.danger ? '#D97878' : C.muted),
                   fontSize: 13.5, fontWeight: 500, cursor: item.disabled ? 'not-allowed' : 'pointer', textAlign: 'left',
                 }}
               >
@@ -814,11 +1069,12 @@ export default function App() {
 
         <div style={{ padding: '4px 10px' }}>
           <button
+            className="nav-btn"
             onClick={() => { setErro(''); setScreen('configuracoes'); }}
             style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none', width: '100%',
-              background: screen === 'configuracoes' ? C.bgDark2 : 'transparent',
-              color: screen === 'configuracoes' ? C.textLight : C.muted, fontSize: 13.5, fontWeight: 500, cursor: 'pointer', textAlign: 'left',
+              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, border: 'none', width: '100%',
+              background: screen === 'configuracoes' ? C.primarySoft : 'transparent',
+              color: screen === 'configuracoes' ? C.primaryDark : C.muted, fontSize: 13.5, fontWeight: 500, cursor: 'pointer', textAlign: 'left',
             }}
           >
             <Settings size={16} strokeWidth={2} />
@@ -826,11 +1082,11 @@ export default function App() {
           </button>
         </div>
 
-        <div style={{ padding: 14, borderTop: `1px solid ${C.borderDark}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 99, background: C.bgDark3, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <User size={14} color={C.muted} />
+        <div style={{ padding: 14, borderTop: `1px solid ${C.borderLight}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 99, background: C.primarySoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <User size={14} color={C.primaryDark} />
           </div>
-          <span style={{ fontSize: 12.5, color: C.textLight, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{operador}</span>
+          <span style={{ fontSize: 12.5, color: C.textDark, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{operador}</span>
           <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
             <LogOut size={15} color={C.muted} />
           </button>
@@ -861,9 +1117,9 @@ export default function App() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <div style={{
                       width: 22, height: 22, borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: done ? C.accent : active ? C.bgDark : C.bgLight,
-                      border: `1px solid ${done ? C.accent : active ? C.bgDark : C.borderLight}`,
-                      fontSize: 11, fontWeight: 700, color: done ? C.bgDark : active ? C.textLight : C.muted,
+                      background: done ? C.accent : active ? C.primary : C.bgLight,
+                      border: `1px solid ${done ? C.accent : active ? C.primary : C.borderLight}`,
+                      fontSize: 11, fontWeight: 700, color: done ? '#fff' : active ? '#fff' : C.muted,
                     }}>
                       {done ? <Check size={12} /> : i + 1}
                     </div>
@@ -941,6 +1197,24 @@ export default function App() {
             <ProdutosScreen produtos={produtos} onAdd={adicionarProdutoCadastro} onEdit={editarProduto} onDelete={excluirProduto} />
           )}
 
+          {screen === 'movimentacoes' && <MovimentacoesScreen movimentos={movimentos} />}
+
+          {screen === 'inventario' && <InventarioScreen produtos={produtos} onAplicar={aplicarInventario} />}
+
+          {screen === 'ajusteEstoque' && <AjusteEstoqueScreen produtos={produtos} onAjustar={ajustarEstoque} />}
+
+          {screen === 'alertasEstoque' && <AlertasEstoqueScreen produtos={produtos} onIrCompras={() => { setGrupoComprasAberto(true); setScreen('novaCompra'); }} />}
+
+          {screen === 'novaCompra' && (
+            <NovaCompraScreen produtos={produtos} fornecedores={fornecedores} onConfirmar={confirmarCompra} />
+          )}
+
+          {screen === 'historicoCompras' && <HistoricoComprasScreen compras={compras} />}
+
+          {screen === 'fornecedores' && (
+            <FornecedoresScreen fornecedores={fornecedores} onAdd={adicionarFornecedor} onEdit={editarFornecedor} onDelete={excluirFornecedor} />
+          )}
+
           {screen === 'vendas' && <VendasScreen vendas={vendas} onCancelar={cancelarVenda} />}
 
           {screen === 'financeiro' && <FinanceiroScreen financeiro={financeiro} />}
@@ -1004,8 +1278,8 @@ function ErroBox({ erro }) {
   );
 }
 
-function Card({ children, style }) {
-  return <div style={{ background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 12, padding: 18, boxShadow: '0 1px 2px rgba(20,22,26,0.03)', ...style }}>{children}</div>;
+function Card({ children, style, className }) {
+  return <div className={className} style={{ background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 16, padding: 18, boxShadow: '0 1px 3px rgba(30,20,60,0.04)', ...style }}>{children}</div>;
 }
 
 const CHART_COLORS = { Dinheiro: '#2DD4BF', 'Cartão Débito': '#60A5FA', 'Cartão Crédito': '#F59E0B', Pix: '#A78BFA' };
@@ -1025,26 +1299,29 @@ function ChartTooltip({ active, payload, label, formatter }) {
   );
 }
 
-function KpiCard({ icon: Icon, iconColor, label, value, sub, accentBar }) {
+function KpiCard({ icon: Icon, iconColor, label, value, numericValue, formatter, sub, accentBar }) {
   const [hover, setHover] = useState(false);
   return (
     <div
+      className="pop-in"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
         background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 12, padding: 16,
-        boxShadow: hover ? '0 8px 20px rgba(20,22,26,0.08)' : '0 1px 2px rgba(20,22,26,0.03)',
-        transform: hover ? 'translateY(-2px)' : 'translateY(0)', transition: 'all 0.18s ease', position: 'relative', overflow: 'hidden',
+        boxShadow: hover ? '0 10px 24px rgba(20,22,26,0.09)' : '0 1px 2px rgba(20,22,26,0.03)',
+        transform: hover ? 'translateY(-3px)' : 'translateY(0)', transition: 'transform 0.22s cubic-bezier(.22,1,.36,1), box-shadow 0.22s ease', position: 'relative', overflow: 'hidden',
       }}
     >
       {accentBar && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: accentBar }} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <div style={{ width: 26, height: 26, borderRadius: 7, background: `${iconColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: `${iconColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }}>
           <Icon size={13.5} color={iconColor} strokeWidth={2.3} />
         </div>
         <span style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4 }}>{label}</span>
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 21, color: C.textDark }}>{value}</div>
+      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 21, color: C.textDark }}>
+        {numericValue !== undefined ? <AnimatedNumber value={numericValue} formatter={formatter || ((v) => v)} /> : value}
+      </div>
       {sub && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{sub}</div>}
     </div>
   );
@@ -1053,7 +1330,7 @@ function KpiCard({ icon: Icon, iconColor, label, value, sub, accentBar }) {
 function Dashboard({ caixa, valorEsperadoCaixa, vendasDoTurno, produtos, ultimoFechamento, vendas, onAbrirCaixa, onIrPDV }) {
   const totalVendido = vendasDoTurno.reduce((s, v) => s + v.total, 0);
   const ticketMedio = vendasDoTurno.length ? totalVendido / vendasDoTurno.length : 0;
-  const baixoEstoque = produtos.filter((p) => p.estoque <= 20);
+  const baixoEstoque = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10));
 
   const dados7dias = useMemo(() => {
     const dias = [];
@@ -1093,25 +1370,25 @@ function Dashboard({ caixa, valorEsperadoCaixa, vendasDoTurno, produtos, ultimoF
     <div style={{ maxWidth: 980 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Dashboard</h1>
+          <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Dashboard</h1>
           <p style={{ color: C.muted, fontSize: 13.5, margin: 0 }}>Visão geral do turno atual e desempenho recente.</p>
         </div>
         {!caixa.aberto ? (
-          <button onClick={onAbrirCaixa} style={btnPrimary}><Wallet size={15} /> Abrir Caixa</button>
+          <button onClick={onAbrirCaixa} onMouseDown={rippleEffect} className="ripple" style={btnPrimary}><Wallet size={15} /> Abrir Caixa</button>
         ) : (
-          <button onClick={onIrPDV} style={btnPrimary}><ShoppingCart size={15} /> Ir para o PDV</button>
+          <button onClick={onIrPDV} onMouseDown={rippleEffect} className="ripple" style={btnPrimary}><ShoppingCart size={15} /> Ir para o PDV</button>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 18 }}>
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 18 }}>
         <KpiCard icon={Wallet} iconColor={caixa.aberto ? C.accentDark : C.danger} accentBar={caixa.aberto ? C.accent : C.danger}
           label="Status do Caixa" value={caixa.aberto ? 'Aberto' : 'Fechado'} sub={caixa.aberto ? `desde ${hora(caixa.dataAbertura)}` : 'nenhum turno ativo'} />
         <KpiCard icon={Receipt} iconColor={C.accentDark} accentBar={C.accent}
-          label="Vendas do Turno" value={fmt(totalVendido)} sub={`${vendasDoTurno.length} venda(s)`} />
+          label="Vendas do Turno" numericValue={totalVendido} formatter={fmt} sub={`${vendasDoTurno.length} venda(s)`} />
         <KpiCard icon={TrendingUp} iconColor="#60A5FA" accentBar="#60A5FA"
-          label="Ticket Médio" value={fmt(ticketMedio)} sub="por venda no turno" />
+          label="Ticket Médio" numericValue={ticketMedio} formatter={fmt} sub="por venda no turno" />
         <KpiCard icon={Banknote} iconColor="#F59E0B" accentBar="#F59E0B"
-          label="Saldo em Caixa" value={caixa.aberto ? fmt(valorEsperadoCaixa) : '—'} sub={caixa.aberto ? 'dinheiro em espécie' : 'caixa fechado'} />
+          label="Saldo em Caixa" value={caixa.aberto ? undefined : '—'} numericValue={caixa.aberto ? valorEsperadoCaixa : undefined} formatter={fmt} sub={caixa.aberto ? 'dinheiro em espécie' : 'caixa fechado'} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 14, marginBottom: 14 }}>
@@ -1236,7 +1513,7 @@ function Dashboard({ caixa, valorEsperadoCaixa, vendasDoTurno, produtos, ultimoF
 function AbrirCaixa({ valor, setValor, onConfirmar }) {
   return (
     <div style={{ maxWidth: 420 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Abrir Caixa</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Abrir Caixa</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Informe o valor inicial (fundo de troco) em dinheiro.</p>
       <form onSubmit={onConfirmar}>
         <Card>
@@ -1248,7 +1525,7 @@ function AbrirCaixa({ valor, setValor, onConfirmar }) {
               style={{ border: 'none', background: 'transparent', outline: 'none', fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 600, flex: 1 }}
             />
           </div>
-          <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}>
+          <button type="submit" onMouseDown={rippleEffect} className="ripple" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}>
             <Check size={15} /> Confirmar Abertura
           </button>
         </Card>
@@ -1295,7 +1572,7 @@ function PDVScreen({ produtos, busca, setBusca, onBuscaSubmit, categorias, categ
           })}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+        <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
           {produtos.map((p) => {
             const qtd = qtdNoCarrinho(p.id);
             return (
@@ -1364,9 +1641,9 @@ function PDVScreen({ produtos, busca, setBusca, onBuscaSubmit, categorias, categ
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>Total</span>
 
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 22 }}>{fmt(total)}</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 22 }}><AnimatedNumber value={total} formatter={fmt} /></span>
           </div>
-          <button onClick={onFinalizar} disabled={carrinho.length === 0} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', opacity: carrinho.length === 0 ? 0.5 : 1, cursor: carrinho.length === 0 ? 'not-allowed' : 'pointer' }}>
+          <button onClick={onFinalizar} onMouseDown={rippleEffect} disabled={carrinho.length === 0} className="ripple" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', opacity: carrinho.length === 0 ? 0.5 : 1, cursor: carrinho.length === 0 ? 'not-allowed' : 'pointer' }}>
             Finalizar Venda
           </button>
         </div>
@@ -1388,7 +1665,7 @@ function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, o
   return (
     <div style={{ maxWidth: 480 }}>
       <button onClick={onVoltar} style={btnGhost}><ArrowLeft size={13} /> Voltar ao PDV</button>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '14px 0 18px' }}>Receber Pagamento</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '14px 0 18px' }}>Receber Pagamento</h1>
 
       <Card style={{ marginBottom: 14 }}>
         <Row label="Subtotal" value={fmt(subtotal)} muted />
@@ -1401,18 +1678,18 @@ function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, o
         </div>
       </Card>
 
-      <div style={{ background: C.bgDark, borderRadius: 12, padding: 20, marginBottom: 18, textAlign: 'center' }}>
+      <div className="pop-in" style={{ background: C.bgDark, borderRadius: 12, padding: 20, marginBottom: 18, textAlign: 'center' }}>
         <div style={{ fontSize: 11.5, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Total a pagar</div>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 36, color: C.accent, textShadow: `0 0 18px ${C.accentGlow}`, marginTop: 4 }}>{fmt(total)}</div>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 36, color: C.accent, textShadow: `0 0 18px ${C.accentGlow}`, marginTop: 4 }}><AnimatedNumber value={total} formatter={fmt} /></div>
         {desconto > 0 && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>desconto de {fmt(desconto)} aplicado</div>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 16 }}>
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 16 }}>
         {formas.map((f) => {
           const Icon = f.icon;
           const active = pagamento.forma === f.key;
           return (
-            <button key={f.key} onClick={() => setPagamento({ forma: f.key, valorRecebido: '' })} style={{
+            <button key={f.key} onClick={() => setPagamento({ forma: f.key, valorRecebido: '' })} onMouseDown={rippleEffect} className="ripple" style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderRadius: 9,
               border: `1.5px solid ${active ? C.accentDark : C.borderLight}`, background: active ? 'rgba(45,212,191,0.08)' : C.panel, cursor: 'pointer',
             }}>
@@ -1424,7 +1701,7 @@ function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, o
       </div>
 
       {pagamento.forma === 'Dinheiro' && (
-        <Card style={{ marginBottom: 16 }}>
+        <Card className="pop-in" style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 12, color: C.muted, display: 'block', marginBottom: 8 }}>Valor recebido do cliente</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.bgLight, border: `1px solid ${C.borderLight}`, borderRadius: 9, padding: '10px 14px' }}>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>R$</span>
@@ -1442,7 +1719,7 @@ function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, o
 
       {pagamento.forma === 'Pix' && <PixCobranca config={config} valor={total} />}
 
-      <button onClick={onConfirmar} style={{ ...btnPrimary, width: '100%', justifyContent: 'center' }}>
+      <button onClick={onConfirmar} onMouseDown={rippleEffect} className="ripple" style={{ ...btnPrimary, width: '100%', justifyContent: 'center' }}>
         <Check size={15} /> Confirmar Pagamento
       </button>
     </div>
@@ -1515,11 +1792,11 @@ function PixCobranca({ config, valor }) {
 function CupomScreen({ venda, onNovaVenda, onImprimir }) {
   return (
     <div style={{ maxWidth: 420 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 18px' }}>Cupom Emitido</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 18px' }}>Cupom Emitido</h1>
 
       <div style={{ background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 12, padding: 20, fontFamily: "'JetBrains Mono',monospace", marginBottom: 16 }}>
         <div style={{ textAlign: 'center', marginBottom: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 13.5, fontFamily: "'Space Grotesk',sans-serif" }}>PDV TERMINAL</div>
+          <div style={{ fontWeight: 700, fontSize: 13.5, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>PDV TERMINAL</div>
           <div style={{ fontSize: 10.5, color: C.muted }}>Cupom Não Fiscal — Venda #{String(venda.numero).padStart(4, '0')}</div>
           <div style={{ fontSize: 10.5, color: C.muted }}>{dataHora(venda.hora)} · {venda.operador}</div>
         </div>
@@ -1585,7 +1862,7 @@ function FecharCaixaScreen({ caixa, totaisPorForma, valorEsperado, qtdVendas, va
   const diferenca = !isNaN(contado) ? contado - valorEsperado : null;
   return (
     <div style={{ maxWidth: 460 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Fechar Caixa</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Fechar Caixa</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Conferência do turno iniciado às {hora(caixa.dataAbertura)}.</p>
 
       <Card style={{ marginBottom: 16 }}>
@@ -1633,10 +1910,504 @@ function Row({ label, value, bold, muted }) {
   );
 }
 
+const MOV_COLORS = { Venda: C.danger, Compra: C.accentDark, Ajuste: '#F59E0B', Estorno: '#60A5FA', Inventário: '#A78BFA' };
+
+function MovimentacoesScreen({ movimentos }) {
+  const [filtro, setFiltro] = useState('Todos');
+  const tipos = ['Todos', 'Venda', 'Compra', 'Ajuste', 'Estorno', 'Inventário'];
+  const lista = useMemo(() => {
+    const l = filtro === 'Todos' ? movimentos : movimentos.filter((m) => m.tipo === filtro);
+    return [...l].reverse();
+  }, [movimentos, filtro]);
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Movimentações de Estoque</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 16px' }}>Histórico completo de entradas e saídas.</p>
+
+      <div style={{ display: 'flex', gap: 7, marginBottom: 16, flexWrap: 'wrap' }}>
+        {tipos.map((t) => (
+          <button key={t} onClick={() => setFiltro(t)} style={{
+            padding: '6px 13px', borderRadius: 99, border: `1.5px solid ${filtro === t ? C.accentDark : C.borderLight}`,
+            background: filtro === t ? 'rgba(45,212,191,0.08)' : C.panel, color: filtro === t ? C.accentDark : C.textDark,
+            fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+          }}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 90 }}>Tipo</span>
+          <span style={{ flex: 1.4 }}>Produto</span>
+          <span style={{ flex: 1 }}>Motivo</span>
+          <span style={{ width: 80, textAlign: 'right' }}>Qtd.</span>
+          <span style={{ width: 110, textAlign: 'right' }}>Data/Hora</span>
+        </div>
+        {lista.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma movimentação registrada.</div>}
+        {lista.map((m) => (
+          <div key={m.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
+            <span style={{ width: 90 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: `${MOV_COLORS[m.tipo] || C.muted}18`, color: MOV_COLORS[m.tipo] || C.muted }}>{m.tipo}</span>
+            </span>
+            <span style={{ flex: 1.4, fontWeight: 500 }}>{m.produtoNome}</span>
+            <span style={{ flex: 1, color: C.muted, fontSize: 12 }}>{m.motivo}</span>
+            <span style={{ width: 80, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: m.quantidade > 0 ? C.accentDark : C.danger }}>
+              {m.quantidade > 0 ? '+' : ''}{m.quantidade}
+            </span>
+            <span style={{ width: 110, textAlign: 'right', color: C.muted, fontSize: 11.5, fontFamily: "'JetBrains Mono',monospace" }}>{dataHora(m.hora)}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function InventarioScreen({ produtos, onAplicar }) {
+  const [contagens, setContagens] = useState({});
+
+  function setContagem(id, valor) {
+    setContagens((prev) => ({ ...prev, [id]: valor }));
+  }
+
+  const diffs = useMemo(() => {
+    const d = {};
+    Object.entries(contagens).forEach(([id, valor]) => {
+      const produto = produtos.find((p) => p.id === Number(id));
+      if (!produto || valor === '') return;
+      const n = parseInt(valor, 10);
+      if (isNaN(n)) return;
+      d[id] = n - produto.estoque;
+    });
+    return d;
+  }, [contagens, produtos]);
+
+  const qtdDivergencias = Object.values(diffs).filter((d) => d !== 0).length;
+
+  function aplicar() {
+    const contagensNum = {};
+    Object.entries(contagens).forEach(([id, valor]) => {
+      const n = parseInt(valor, 10);
+      if (!isNaN(n)) contagensNum[id] = n;
+    });
+    onAplicar(contagensNum);
+    setContagens({});
+  }
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Inventário</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 16px' }}>Faça a contagem física e aplique os ajustes de uma vez.</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Produto</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Sistema</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Contagem</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Diferença</span>
+        </div>
+        {produtos.map((p) => {
+          const diff = diffs[p.id];
+          return (
+            <div key={p.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+              <span style={{ flex: 1.6, fontWeight: 500 }}>{p.nome}</span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{p.estoque}</span>
+              <span style={{ width: 100, textAlign: 'right' }}>
+                <input
+                  value={contagens[p.id] ?? ''} onChange={(e) => setContagem(p.id, e.target.value)} placeholder="—" inputMode="numeric"
+                  style={{ width: 70, boxSizing: 'border-box', textAlign: 'right', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 7px', fontSize: 12.5, fontFamily: "'JetBrains Mono',monospace" }}
+                />
+              </span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: diff === undefined || diff === 0 ? C.muted : diff > 0 ? C.accentDark : C.danger }}>
+                {diff === undefined ? '—' : `${diff > 0 ? '+' : ''}${diff}`}
+              </span>
+            </div>
+          );
+        })}
+      </Card>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <button onClick={aplicar} disabled={qtdDivergencias === 0} style={{ ...btnPrimary, opacity: qtdDivergencias === 0 ? 0.5 : 1, cursor: qtdDivergencias === 0 ? 'not-allowed' : 'pointer' }}>
+          <Check size={15} /> Aplicar Ajustes
+        </button>
+        <span style={{ fontSize: 12.5, color: C.muted }}>{qtdDivergencias} divergência(s) encontrada(s)</span>
+      </div>
+    </div>
+  );
+}
+
+function AjusteEstoqueScreen({ produtos, onAjustar }) {
+  const [produtoId, setProdutoId] = useState('');
+  const [tipo, setTipo] = useState('entrada');
+  const [quantidade, setQuantidade] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState('');
+
+  const produto = produtos.find((p) => p.id === Number(produtoId));
+
+  function submit(e) {
+    e.preventDefault();
+    const n = parseInt(quantidade, 10);
+    if (!produtoId) { setErro('Selecione um produto.'); return; }
+    if (isNaN(n) || n <= 0) { setErro('Informe uma quantidade válida.'); return; }
+    if (tipo === 'saida' && produto && n > produto.estoque) { setErro('Quantidade maior que o estoque disponível.'); return; }
+    onAjustar({ produtoId: Number(produtoId), quantidade: tipo === 'entrada' ? n : -n, motivo: motivo.trim() || (tipo === 'entrada' ? 'Ajuste de entrada' : 'Ajuste de saída') });
+    setProdutoId(''); setQuantidade(''); setMotivo(''); setErro('');
+  }
+
+  return (
+    <div style={{ maxWidth: 460 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Ajuste de Estoque</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Correções pontuais — perdas, quebras, doações, achados.</p>
+
+      <form onSubmit={submit}>
+        <Card>
+          <label style={labelSm}>Produto</label>
+          <select value={produtoId} onChange={(e) => setProdutoId(e.target.value)} style={{ ...inputLightStyle, marginBottom: 14 }}>
+            <option value="">Selecione um produto...</option>
+            {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome} (estoque: {p.estoque})</option>)}
+          </select>
+
+          <label style={labelSm}>Tipo de ajuste</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, marginTop: 4 }}>
+            {[{ v: 'entrada', l: 'Entrada (+)' }, { v: 'saida', l: 'Saída (−)' }].map((o) => (
+              <button type="button" key={o.v} onClick={() => setTipo(o.v)} style={{
+                flex: 1, padding: '9px 0', borderRadius: 8, border: `1.5px solid ${tipo === o.v ? C.accentDark : C.borderLight}`,
+                background: tipo === o.v ? 'rgba(45,212,191,0.08)' : C.panel, color: tipo === o.v ? C.accentDark : C.textDark, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              }}>
+                {o.l}
+              </button>
+            ))}
+          </div>
+
+          <label style={labelSm}>Quantidade</label>
+          <input value={quantidade} onChange={(e) => setQuantidade(e.target.value)} inputMode="numeric" placeholder="0" style={{ ...inputLightStyle, marginBottom: 14 }} />
+
+          <label style={labelSm}>Motivo</label>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex: produto vencido, quebra no transporte..." style={inputLightStyle} />
+
+          {erro && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erro}</div>}
+
+          <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 18 }}>
+            <SlidersHorizontal size={15} /> Aplicar Ajuste
+          </button>
+        </Card>
+      </form>
+    </div>
+  );
+}
+
+function AlertasEstoqueScreen({ produtos, onIrCompras }) {
+  const alertas = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10)).sort((a, b) => a.estoque - b.estoque);
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Alertas de Estoque</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Produtos no ou abaixo do estoque mínimo cadastrado.</p>
+
+      {alertas.length === 0 ? (
+        <Card style={{ textAlign: 'center', padding: 32, color: C.muted, fontSize: 13 }}>
+          <CheckCircle2 size={20} color={C.accentDark} style={{ marginBottom: 8 }} /><br />Nenhum produto abaixo do mínimo.
+        </Card>
+      ) : (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+            <span style={{ flex: 1.6 }}>Produto</span>
+            <span style={{ width: 90, textAlign: 'right' }}>Estoque</span>
+            <span style={{ width: 90, textAlign: 'right' }}>Mínimo</span>
+          </div>
+          {alertas.map((p) => (
+            <div key={p.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+              <span style={{ flex: 1.6, display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 99, background: p.estoque === 0 ? C.danger : C.warn }} />
+                {p.nome}
+              </span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: p.estoque === 0 ? C.danger : C.warn }}>{p.estoque}</span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{p.estoqueMinimo ?? 10}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <button onClick={onIrCompras} style={{ ...btnPrimary, marginTop: 16 }}>
+        <Truck size={15} /> Registrar nova compra
+      </button>
+    </div>
+  );
+}
+
+function NovaCompraScreen({ produtos, fornecedores, onConfirmar }) {
+  const [fornecedorId, setFornecedorId] = useState('');
+  const [itens, setItens] = useState([]);
+  const [produtoSel, setProdutoSel] = useState('');
+  const [qtdSel, setQtdSel] = useState('');
+  const [custoSel, setCustoSel] = useState('');
+  const [frete, setFrete] = useState('');
+  const [desconto, setDesconto] = useState('');
+  const [erro, setErro] = useState('');
+
+  function adicionarItem() {
+    const produto = produtos.find((p) => p.id === Number(produtoSel));
+    const qtd = parseInt(qtdSel, 10);
+    const custo = parseFloat(String(custoSel).replace(',', '.'));
+    if (!produto) { setErro('Selecione um produto.'); return; }
+    if (isNaN(qtd) || qtd <= 0) { setErro('Informe uma quantidade válida.'); return; }
+    if (isNaN(custo) || custo < 0) { setErro('Informe um custo unitário válido.'); return; }
+    setItens((prev) => {
+      const existe = prev.find((i) => i.produtoId === produto.id);
+      if (existe) return prev.map((i) => (i.produtoId === produto.id ? { ...i, qtd: i.qtd + qtd, custo } : i));
+      return [...prev, { produtoId: produto.id, nome: produto.nome, qtd, custo }];
+    });
+    setProdutoSel(''); setQtdSel(''); setCustoSel(''); setErro('');
+  }
+
+  function removerItem(id) {
+    setItens((prev) => prev.filter((i) => i.produtoId !== id));
+  }
+
+  const subtotal = itens.reduce((s, i) => s + i.qtd * i.custo, 0);
+  const freteNum = parseFloat(String(frete).replace(',', '.')) || 0;
+  const descontoNum = parseFloat(String(desconto).replace(',', '.')) || 0;
+  const total = Math.max(subtotal + freteNum - descontoNum, 0);
+
+  function finalizarCompra() {
+    if (!fornecedorId) { setErro('Selecione um fornecedor.'); return; }
+    if (itens.length === 0) { setErro('Adicione ao menos um item à compra.'); return; }
+    onConfirmar({ fornecedorId: Number(fornecedorId), itens, frete: freteNum, desconto: descontoNum });
+    setFornecedorId(''); setItens([]); setFrete(''); setDesconto(''); setErro('');
+  }
+
+  const cellInput = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '6px 8px', fontSize: 12.5 };
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Nova Compra</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Ao confirmar, o estoque aumenta e o custo do produto é atualizado.</p>
+
+      <Card style={{ marginBottom: 16 }}>
+        <label style={labelSm}>Fornecedor</label>
+        <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} style={inputLightStyle}>
+          <option value="">Selecione um fornecedor...</option>
+          {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+        </select>
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Adicionar item</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1fr auto', gap: 8, alignItems: 'end' }}>
+          <div>
+            <label style={labelSm}>Produto</label>
+            <select value={produtoSel} onChange={(e) => { setProdutoSel(e.target.value); const p = produtos.find(pp => pp.id === Number(e.target.value)); if (p) setCustoSel(String(p.custo || '')); }} style={cellInput}>
+              <option value="">Selecione...</option>
+              {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelSm}>Qtd.</label>
+            <input value={qtdSel} onChange={(e) => setQtdSel(e.target.value)} inputMode="numeric" placeholder="0" style={cellInput} />
+          </div>
+          <div>
+            <label style={labelSm}>Custo unit. (R$)</label>
+            <input value={custoSel} onChange={(e) => setCustoSel(e.target.value)} inputMode="decimal" placeholder="0,00" style={cellInput} />
+          </div>
+          <button type="button" onClick={adicionarItem} style={{ ...btnGhostSolid, height: 33, padding: '0 14px' }}><Plus size={14} /> Adicionar</button>
+        </div>
+        {erro && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erro}</div>}
+      </Card>
+
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Produto</span>
+          <span style={{ width: 70, textAlign: 'right' }}>Qtd.</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Custo</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Subtotal</span>
+          <span style={{ width: 40 }} />
+        </div>
+        {itens.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhum item adicionado ainda.</div>}
+        {itens.map((i) => (
+          <div key={i.produtoId} style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+            <span style={{ flex: 1.6 }}>{i.nome}</span>
+            <span style={{ width: 70, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{i.qtd}</span>
+            <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{fmt(i.custo)}</span>
+            <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{fmt(i.qtd * i.custo)}</span>
+            <span style={{ width: 40, textAlign: 'right' }}>
+              <button onClick={() => removerItem(i.produtoId)} style={iconBtn}><X size={13} color={C.danger} /></button>
+            </span>
+          </div>
+        ))}
+      </Card>
+
+      <Card>
+        <Row label="Subtotal" value={fmt(subtotal)} muted />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 13, color: C.muted, flex: 1 }}>Frete (R$)</span>
+          <input value={frete} onChange={(e) => setFrete(e.target.value)} placeholder="0,00" inputMode="decimal" style={{ width: 100, boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 8px', fontFamily: "'JetBrains Mono',monospace", fontSize: 13, textAlign: 'right' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 13, color: C.muted, flex: 1 }}>Desconto (R$)</span>
+          <input value={desconto} onChange={(e) => setDesconto(e.target.value)} placeholder="0,00" inputMode="decimal" style={{ width: 100, boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 8px', fontFamily: "'JetBrains Mono',monospace", fontSize: 13, textAlign: 'right' }} />
+        </div>
+        <div style={{ borderTop: `1px solid ${C.borderLight}`, margin: '10px 0' }} />
+        <Row label="TOTAL" value={fmt(total)} bold />
+        <button onClick={finalizarCompra} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}>
+          <Check size={15} /> Confirmar Compra
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+function HistoricoComprasScreen({ compras }) {
+  const [expandido, setExpandido] = useState(null);
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Histórico de Compras</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Todas as compras registradas de fornecedores.</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 60 }}>Nº</span>
+          <span style={{ flex: 1 }}>Fornecedor / Data</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Total</span>
+        </div>
+        {compras.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma compra registrada ainda.</div>}
+        {[...compras].reverse().map((c) => {
+          const aberto = expandido === c.numero;
+          return (
+            <div key={c.numero} className="table-row" style={{ borderTop: `1px solid ${C.borderLight}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', fontSize: 13 }}>
+                <button onClick={() => setExpandido(aberto ? null : c.numero)} style={{ width: 60, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: 0 }}>
+                  #{String(c.numero).padStart(4, '0')}
+                </button>
+                <span style={{ flex: 1, color: C.muted, fontSize: 12.5 }}>{c.fornecedorNome} · {dataHora(c.hora)}</span>
+                <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(c.total)}</span>
+              </div>
+              {aberto && (
+                <div style={{ padding: '0 16px 12px 76px' }}>
+                  {c.itens.map((i) => (
+                    <div key={i.produtoId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted, padding: '2px 0' }}>
+                      <span>{i.qtd}x {i.nome} · custo {fmt(i.custo)}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{fmt(i.qtd * i.custo)}</span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>
+                    Frete: {fmt(c.frete)} · Desconto: {fmt(c.desconto)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+function FornecedoresScreen({ fornecedores, onAdd, onEdit, onDelete }) {
+  const [novo, setNovo] = useState({ nome: '', contato: '', telefone: '', cnpj: '' });
+  const [erroForm, setErroForm] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const cellInput = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 7px', fontSize: 12.5 };
+
+  function submitNovo(e) {
+    e.preventDefault();
+    if (!novo.nome.trim()) { setErroForm('Informe ao menos o nome do fornecedor.'); return; }
+    onAdd({ nome: novo.nome.trim(), contato: novo.contato.trim(), telefone: novo.telefone.trim(), cnpj: novo.cnpj.trim() });
+    setNovo({ nome: '', contato: '', telefone: '', cnpj: '' });
+    setErroForm('');
+  }
+
+  function iniciarEdicao(f) {
+    setEditId(f.id);
+    setEditValues({ nome: f.nome, contato: f.contato, telefone: f.telefone, cnpj: f.cnpj });
+  }
+
+  function salvarEdicao(id) {
+    if (!editValues.nome.trim()) return;
+    onEdit(id, editValues);
+    setEditId(null);
+  }
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Fornecedores</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Cadastro usado nas compras de mercadoria.</p>
+
+      <form onSubmit={submitNovo}>
+        <Card style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Novo fornecedor</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+            <div>
+              <label style={labelSm}>Nome</label>
+              <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Distribuidora X" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Contato</label>
+              <input value={novo.contato} onChange={(e) => setNovo({ ...novo, contato: e.target.value })} placeholder="Nome do vendedor" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Telefone</label>
+              <input value={novo.telefone} onChange={(e) => setNovo({ ...novo, telefone: e.target.value })} placeholder="(11) 99999-9999" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>CNPJ</label>
+              <input value={novo.cnpj} onChange={(e) => setNovo({ ...novo, cnpj: e.target.value })} placeholder="00.000.000/0000-00" style={cellInput} />
+            </div>
+            <button type="submit" style={{ ...btnPrimary, height: 33, padding: '0 14px' }}><Plus size={14} /> Adicionar</button>
+          </div>
+          {erroForm && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erroForm}</div>}
+        </Card>
+      </form>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Nome</span>
+          <span style={{ flex: 1.2 }}>Contato</span>
+          <span style={{ flex: 1 }}>Telefone</span>
+          <span style={{ flex: 1 }}>CNPJ</span>
+          <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
+        </div>
+        {fornecedores.map((f) => {
+          const editando = editId === f.id;
+          return (
+            <div key={f.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+              {editando ? (
+                <>
+                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 1.6 }} />
+                  <input value={editValues.contato} onChange={(e) => setEditValues({ ...editValues, contato: e.target.value })} style={{ ...cellInput, flex: 1.2 }} />
+                  <input value={editValues.telefone} onChange={(e) => setEditValues({ ...editValues, telefone: e.target.value })} style={{ ...cellInput, flex: 1 }} />
+                  <input value={editValues.cnpj} onChange={(e) => setEditValues({ ...editValues, cnpj: e.target.value })} style={{ ...cellInput, flex: 1 }} />
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => salvarEdicao(f.id)} style={iconBtn}><Check size={13} color={C.accentDark} /></button>
+                    <button onClick={() => setEditId(null)} style={iconBtn}><X size={13} color={C.muted} /></button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span style={{ flex: 1.6, fontWeight: 500 }}>{f.nome}</span>
+                  <span style={{ flex: 1.2, color: C.muted }}>{f.contato || '—'}</span>
+                  <span style={{ flex: 1, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{f.telefone || '—'}</span>
+                  <span style={{ flex: 1, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{f.cnpj || '—'}</span>
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => iniciarEdicao(f)} style={iconBtn}><Pencil size={13} color={C.muted} /></button>
+                    <button onClick={() => onDelete(f.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {fornecedores.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum fornecedor cadastrado.</div>}
+      </Card>
+    </div>
+  );
+}
+
 function FinanceiroScreen({ financeiro }) {
   return (
     <div style={{ maxWidth: 640 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Financeiro</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Financeiro</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Lançamentos registrados automaticamente pelo PDV.</p>
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11.5, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
@@ -1664,7 +2435,7 @@ function gerarCodigoBarras() {
 }
 
 function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
-  const [novo, setNovo] = useState({ nome: '', categoria: '', preco: '', estoque: '', codigoBarras: '' });
+  const [novo, setNovo] = useState({ nome: '', categoria: '', preco: '', custo: '', estoque: '', estoqueMinimo: '', codigoBarras: '' });
   const [erroForm, setErroForm] = useState('');
   const [editId, setEditId] = useState(null);
   const [editValues, setEditValues] = useState({});
@@ -1672,7 +2443,9 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
   function submitNovo(e) {
     e.preventDefault();
     const preco = parseFloat(String(novo.preco).replace(',', '.'));
+    const custo = novo.custo ? parseFloat(String(novo.custo).replace(',', '.')) : 0;
     const estoque = parseInt(novo.estoque, 10);
+    const estoqueMinimo = novo.estoqueMinimo ? parseInt(novo.estoqueMinimo, 10) : 10;
     if (!novo.nome.trim() || !novo.categoria.trim() || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0) {
       setErroForm('Preencha nome, categoria, preço e estoque corretamente.');
       return;
@@ -1681,21 +2454,23 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
       setErroForm('Já existe um produto com esse código de barras.');
       return;
     }
-    onAdd({ nome: novo.nome.trim(), categoria: novo.categoria.trim(), preco, estoque, codigoBarras: novo.codigoBarras.trim() || gerarCodigoBarras() });
-    setNovo({ nome: '', categoria: '', preco: '', estoque: '', codigoBarras: '' });
+    onAdd({ nome: novo.nome.trim(), categoria: novo.categoria.trim(), preco, custo: isNaN(custo) ? 0 : custo, estoque, estoqueMinimo: isNaN(estoqueMinimo) ? 10 : estoqueMinimo, codigoBarras: novo.codigoBarras.trim() || gerarCodigoBarras() });
+    setNovo({ nome: '', categoria: '', preco: '', custo: '', estoque: '', estoqueMinimo: '', codigoBarras: '' });
     setErroForm('');
   }
 
   function iniciarEdicao(p) {
     setEditId(p.id);
-    setEditValues({ nome: p.nome, categoria: p.categoria, preco: String(p.preco), estoque: String(p.estoque), codigoBarras: p.codigoBarras || '' });
+    setEditValues({ nome: p.nome, categoria: p.categoria, preco: String(p.preco), custo: String(p.custo || 0), estoque: String(p.estoque), estoqueMinimo: String(p.estoqueMinimo ?? 10), codigoBarras: p.codigoBarras || '' });
   }
 
   function salvarEdicao(id) {
     const preco = parseFloat(String(editValues.preco).replace(',', '.'));
+    const custo = parseFloat(String(editValues.custo).replace(',', '.'));
     const estoque = parseInt(editValues.estoque, 10);
+    const estoqueMinimo = parseInt(editValues.estoqueMinimo, 10);
     if (!editValues.nome.trim() || !editValues.categoria.trim() || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0) return;
-    onEdit(id, { nome: editValues.nome.trim(), categoria: editValues.categoria.trim(), preco, estoque, codigoBarras: editValues.codigoBarras.trim() });
+    onEdit(id, { nome: editValues.nome.trim(), categoria: editValues.categoria.trim(), preco, custo: isNaN(custo) ? 0 : custo, estoque, estoqueMinimo: isNaN(estoqueMinimo) ? 10 : estoqueMinimo, codigoBarras: editValues.codigoBarras.trim() });
     setEditId(null);
   }
 
@@ -1703,14 +2478,14 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
   const cellInputMono = { ...cellInput, fontFamily: "'JetBrains Mono',monospace" };
 
   return (
-    <div style={{ maxWidth: 920 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Cadastro de Produtos</h1>
+    <div style={{ maxWidth: 980 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Cadastro de Produtos</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Adicione, edite ou remova itens do catálogo, incluindo código de barras.</p>
 
       <form onSubmit={submitNovo}>
         <Card style={{ marginBottom: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Novo produto</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.2fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.1fr 0.8fr 0.8fr 0.8fr 0.8fr', gap: 10, marginBottom: 10 }}>
             <div>
               <label style={labelSm}>Nome</label>
               <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Ex: Suco de Laranja 1L" style={cellInput} />
@@ -1724,8 +2499,16 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
               <input value={novo.preco} onChange={(e) => setNovo({ ...novo, preco: e.target.value })} placeholder="0,00" inputMode="decimal" style={cellInput} />
             </div>
             <div>
+              <label style={labelSm}>Custo (R$)</label>
+              <input value={novo.custo} onChange={(e) => setNovo({ ...novo, custo: e.target.value })} placeholder="0,00" inputMode="decimal" style={cellInput} />
+            </div>
+            <div>
               <label style={labelSm}>Estoque</label>
               <input value={novo.estoque} onChange={(e) => setNovo({ ...novo, estoque: e.target.value })} placeholder="0" inputMode="numeric" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Estoque mín.</label>
+              <input value={novo.estoqueMinimo} onChange={(e) => setNovo({ ...novo, estoqueMinimo: e.target.value })} placeholder="10" inputMode="numeric" style={cellInput} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'end' }}>
@@ -1754,11 +2537,12 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-          <span style={{ flex: 1.8 }}>Produto</span>
-          <span style={{ flex: 1 }}>Categoria</span>
-          <span style={{ width: 120 }}>Código de barras</span>
-          <span style={{ width: 90, textAlign: 'right' }}>Preço</span>
-          <span style={{ width: 70, textAlign: 'right' }}>Estoque</span>
+          <span style={{ flex: 1.6 }}>Produto</span>
+          <span style={{ flex: 0.9 }}>Categoria</span>
+          <span style={{ width: 110 }}>Cód. barras</span>
+          <span style={{ width: 80, textAlign: 'right' }}>Custo</span>
+          <span style={{ width: 80, textAlign: 'right' }}>Preço</span>
+          <span style={{ width: 60, textAlign: 'right' }}>Estoq.</span>
           <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
         </div>
         {produtos.map((p) => {
@@ -1767,11 +2551,12 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
             <div key={p.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
               {editando ? (
                 <>
-                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 1.8 }} />
-                  <input value={editValues.categoria} onChange={(e) => setEditValues({ ...editValues, categoria: e.target.value })} style={{ ...cellInput, flex: 1 }} />
-                  <input value={editValues.codigoBarras} onChange={(e) => setEditValues({ ...editValues, codigoBarras: e.target.value })} style={{ ...cellInputMono, width: 120 }} />
-                  <input value={editValues.preco} onChange={(e) => setEditValues({ ...editValues, preco: e.target.value })} style={{ ...cellInput, width: 90 }} />
-                  <input value={editValues.estoque} onChange={(e) => setEditValues({ ...editValues, estoque: e.target.value })} style={{ ...cellInput, width: 70 }} />
+                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 1.6 }} />
+                  <input value={editValues.categoria} onChange={(e) => setEditValues({ ...editValues, categoria: e.target.value })} style={{ ...cellInput, flex: 0.9 }} />
+                  <input value={editValues.codigoBarras} onChange={(e) => setEditValues({ ...editValues, codigoBarras: e.target.value })} style={{ ...cellInputMono, width: 110 }} />
+                  <input value={editValues.custo} onChange={(e) => setEditValues({ ...editValues, custo: e.target.value })} style={{ ...cellInput, width: 80 }} />
+                  <input value={editValues.preco} onChange={(e) => setEditValues({ ...editValues, preco: e.target.value })} style={{ ...cellInput, width: 80 }} />
+                  <input value={editValues.estoque} onChange={(e) => setEditValues({ ...editValues, estoque: e.target.value })} style={{ ...cellInput, width: 60 }} />
                   <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                     <button onClick={() => salvarEdicao(p.id)} style={iconBtn}><Check size={13} color={C.accentDark} /></button>
                     <button onClick={() => setEditId(null)} style={iconBtn}><X size={13} color={C.muted} /></button>
@@ -1779,13 +2564,14 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
                 </>
               ) : (
                 <>
-                  <span style={{ flex: 1.8, fontWeight: 500 }}>{p.nome}</span>
-                  <span style={{ flex: 1, color: C.muted }}>{p.categoria}</span>
-                  <span style={{ width: 120, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Barcode size={12} />{p.codigoBarras || '—'}
+                  <span style={{ flex: 1.6, fontWeight: 500 }}>{p.nome}</span>
+                  <span style={{ flex: 0.9, color: C.muted }}>{p.categoria}</span>
+                  <span style={{ width: 110, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Barcode size={11} />{p.codigoBarras || '—'}
                   </span>
-                  <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{fmt(p.preco)}</span>
-                  <span style={{ width: 70, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: p.estoque <= 5 ? C.danger : p.estoque <= 20 ? C.warn : C.textDark }}>{p.estoque}</span>
+                  <span style={{ width: 80, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{fmt(p.custo || 0)}</span>
+                  <span style={{ width: 80, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{fmt(p.preco)}</span>
+                  <span style={{ width: 60, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: p.estoque <= (p.estoqueMinimo ?? 10) ? C.danger : C.textDark }}>{p.estoque}</span>
                   <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                     <button onClick={() => iniciarEdicao(p)} style={iconBtn}><Pencil size={13} color={C.muted} /></button>
                     <button onClick={() => onDelete(p.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
@@ -1805,7 +2591,7 @@ function VendasScreen({ vendas, onCancelar }) {
   const [expandido, setExpandido] = useState(null);
   return (
     <div style={{ maxWidth: 780 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Vendas</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Vendas</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Histórico completo, incluindo turnos anteriores.</p>
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -1864,7 +2650,7 @@ function VendasScreen({ vendas, onCancelar }) {
 function SangriaScreen({ caixa, valorDisponivel, sangriaInput, setSangriaInput, onConfirmar, historico }) {
   return (
     <div style={{ maxWidth: 460 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Sangria de Caixa</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Sangria de Caixa</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Retirada de dinheiro do caixa durante o turno.</p>
 
       <div style={{ background: C.bgDark, borderRadius: 12, padding: 18, marginBottom: 16, textAlign: 'center' }}>
@@ -1970,7 +2756,7 @@ function RelatoriosScreen({ vendas, sangrias }) {
 
   return (
     <div style={{ maxWidth: 920 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Relatórios</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Relatórios</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Desempenho de vendas por período.</p>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, justifyContent: 'space-between', flexWrap: 'wrap' }}>
@@ -2064,7 +2850,7 @@ function ConfiguracoesScreen({ config, setConfig }) {
 
   return (
     <div style={{ maxWidth: 480 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Configurações</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Configurações</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Dados usados na emissão de cupons e identificação da loja.</p>
 
       <form onSubmit={salvar}>
@@ -2145,30 +2931,32 @@ function ConfiguracoesScreen({ config, setConfig }) {
 
 // ---------- ESTILOS COMPARTILHADOS ----------
 const btnPrimary = {
-  display: 'inline-flex', alignItems: 'center', gap: 7, background: C.accent, color: C.bgDark, border: 'none',
-  borderRadius: 9, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif",
+  display: 'inline-flex', alignItems: 'center', gap: 7, background: C.primary, color: C.textLight, border: 'none',
+  borderRadius: 11, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif",
+  boxShadow: '0 4px 14px rgba(109,93,246,0.32)',
 };
 const btnDanger = {
   display: 'inline-flex', alignItems: 'center', gap: 7, background: C.danger, color: '#fff', border: 'none',
-  borderRadius: 9, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif",
+  borderRadius: 11, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif",
+  boxShadow: '0 4px 14px rgba(239,68,68,0.28)',
 };
 const btnGhost = {
   display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: C.muted, fontSize: 12.5, cursor: 'pointer', padding: 0, fontWeight: 600,
 };
 const btnGhostSolid = {
   display: 'inline-flex', alignItems: 'center', gap: 7, background: C.panel, color: C.textDark, border: `1px solid ${C.borderLight}`,
-  borderRadius: 9, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif",
+  borderRadius: 11, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif",
 };
 const qtyBtn = {
-  width: 20, height: 20, borderRadius: 5, border: `1px solid ${C.borderLight}`, background: C.bgLight, display: 'flex',
+  width: 22, height: 22, borderRadius: 7, border: `1px solid ${C.borderLight}`, background: C.bgLight, display: 'flex',
   alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.textDark, flexShrink: 0,
 };
 const iconBtn = {
-  width: 24, height: 24, borderRadius: 6, border: `1px solid ${C.borderLight}`, background: C.panel, display: 'flex',
+  width: 26, height: 26, borderRadius: 8, border: `1px solid ${C.borderLight}`, background: C.panel, display: 'flex',
   alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
 };
 const labelSm = { fontSize: 10.5, color: C.muted, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 };
 const inputLightStyle = {
-  width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 8,
-  padding: '9px 12px', fontSize: 13.5, outline: 'none', fontFamily: "'Inter',sans-serif", marginTop: 2,
+  width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 10,
+  padding: '9px 12px', fontSize: 13.5, outline: 'none', fontFamily: "'Inter',sans-serif", marginTop: 2, background: C.panel,
 };
