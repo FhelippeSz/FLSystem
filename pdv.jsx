@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -9,69 +10,249 @@ import {
   AlertTriangle, TrendingUp, Package, ListChecks, Printer, Store,
   UserPlus, KeyRound, HelpCircle, Trash2, Pencil, Ban, CheckCircle2,
   BarChart3, ArrowDownCircle, Settings, Calendar, CalendarDays, CalendarRange,
-  Barcode, ScanLine, LayoutGrid, Clock
+  Barcode, ScanLine, LayoutGrid, Clock, ClipboardList, Truck, ChevronDown,
+  ChevronRight, PackageSearch, SlidersHorizontal, BellRing, ShoppingBag, History,
+  Users, Tags, Boxes, ArrowLeftRight, Undo2, Activity, ArrowUpCircle, UserCog,
+  ShieldCheck, Cog, Database, Download, Upload, Building2, Percent, TrendingDown
 } from 'lucide-react';
 
 const C = {
-  bgDark: '#14161A',
-  bgDark2: '#1B1E24',
-  bgDark3: '#22262E',
-  bgLight: '#F3F4F1',
+  bgDark: '#131320',
+  bgDark2: '#1B1B2C',
+  bgDark3: '#242438',
+  bgLight: '#F6F6FB',
   panel: '#FFFFFF',
   accent: '#2DD4BF',
   accentDark: '#0F9C8C',
   accentGlow: 'rgba(45,212,191,0.35)',
+  primary: '#6D5DF6',
+  primaryDark: '#5646D8',
+  primarySoft: '#EFEDFF',
+  primaryGlow: 'rgba(109,93,246,0.35)',
   danger: '#EF4444',
   dangerBg: '#FEF2F2',
   warn: '#F59E0B',
   warnBg: '#FFFBEB',
-  textDark: '#181B20',
-  textLight: '#F5F6F4',
-  muted: '#8A93A3',
-  mutedDark: '#5B6472',
-  borderDark: '#2A2E37',
-  borderLight: '#E4E6E1',
+  textDark: '#16151F',
+  textLight: '#F5F5FA',
+  muted: '#8B8DA0',
+  mutedDark: '#63647A',
+  borderDark: '#2E2E44',
+  borderLight: '#ECECF3',
 };
 
 const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 * { box-sizing: border-box; }
-button { font-family: inherit; transition: filter 0.15s ease, transform 0.12s ease, background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease; }
+html, body { scroll-behavior: smooth; }
+button { font-family: inherit; transition: filter 0.15s ease, transform 0.12s cubic-bezier(.34,1.56,.64,1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease; }
 button:not(:disabled):hover { filter: brightness(1.06); }
-button:not(:disabled):active { transform: scale(0.97); }
-input, select { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
-input:focus, select:focus { border-color: ${C.accentDark} !important; box-shadow: 0 0 0 3px ${C.accentGlow}; }
-.nav-btn:not(:disabled):hover { background: ${C.bgDark3} !important; color: ${C.textLight} !important; }
-.prod-card:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(20,22,26,0.10); border-color: ${C.accentDark}66 !important; }
+button:not(:disabled):active { transform: scale(0.96); }
+input, select { transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.15s ease; }
+input:focus, select:focus { border-color: ${C.primaryDark} !important; box-shadow: 0 0 0 3px ${C.primaryGlow}; }
+.nav-btn { position: relative; }
+.nav-btn:not(:disabled):hover { background: ${C.primarySoft} !important; color: ${C.primaryDark} !important; }
+.nav-btn:not(:disabled):hover svg { transform: scale(1.1); }
+.nav-btn svg { transition: transform 0.2s cubic-bezier(.34,1.56,.64,1); }
+.prod-card { transition: transform 0.22s cubic-bezier(.22,1,.36,1), box-shadow 0.22s ease, border-color 0.22s ease; }
+.prod-card:not(:disabled):hover { transform: translateY(-3px) scale(1.015); box-shadow: 0 14px 28px rgba(30,20,60,0.10); border-color: ${C.primaryDark}55 !important; }
+.prod-card:not(:disabled):active { transform: translateY(-1px) scale(0.99); }
+.table-row { transition: background 0.15s ease; }
 .table-row:hover { background: ${C.bgLight}; }
+.card-hover { transition: transform 0.22s cubic-bezier(.22,1,.36,1), box-shadow 0.22s ease; }
+.card-hover:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(30,20,60,0.08); }
 .scroll-thin::-webkit-scrollbar { width: 7px; height: 7px; }
 .scroll-thin::-webkit-scrollbar-thumb { background: ${C.borderLight}; border-radius: 99px; }
-@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in { animation: fadeSlideIn 0.28s ease; }
-@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
-.toast-anim { animation: toastIn 0.25s ease; }
+.scroll-thin::-webkit-scrollbar-thumb:hover { background: ${C.mutedDark}; }
+
+@keyframes fadeSlideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeSlideIn 0.32s cubic-bezier(.22,1,.36,1); }
+
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 14px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+.toast-anim { animation: toastIn 0.3s cubic-bezier(.34,1.56,.64,1); }
+
+@keyframes popIn { from { opacity: 0; transform: scale(0.92) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+.pop-in { animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1) both; }
+
+@keyframes staggerIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.stagger > * { animation: staggerIn 0.4s cubic-bezier(.22,1,.36,1) both; }
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger > *:nth-child(3) { animation-delay: 0.10s; }
+.stagger > *:nth-child(4) { animation-delay: 0.14s; }
+.stagger > *:nth-child(5) { animation-delay: 0.18s; }
+.stagger > *:nth-child(6) { animation-delay: 0.22s; }
+.stagger > *:nth-child(n+7) { animation-delay: 0.26s; }
+
+@keyframes pulseDot { 0% { box-shadow: 0 0 0 0 ${C.accentGlow}; } 70% { box-shadow: 0 0 0 7px rgba(45,212,191,0); } 100% { box-shadow: 0 0 0 0 rgba(45,212,191,0); } }
+.pulse-dot { animation: pulseDot 2s cubic-bezier(.4,0,.6,1) infinite; }
+
+@keyframes gradientMove { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+.gradient-bg {
+  background: linear-gradient(120deg, ${C.bgDark} 0%, #2c204f 25%, ${C.bgDark} 50%, #143733 75%, ${C.bgDark} 100%);
+  background-size: 300% 300%;
+  animation: gradientMove 14s ease infinite;
+}
+
+@keyframes floatBlob { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(20px,-24px) scale(1.08); } 66% { transform: translate(-16px,14px) scale(0.94); } }
+.blob { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.35; animation: floatBlob 12s ease-in-out infinite; pointer-events: none; }
+
+.ripple { position: relative; overflow: hidden; }
+@keyframes rippleAnim { from { width: 0; height: 0; opacity: 0.45; } to { width: 340px; height: 340px; opacity: 0; } }
+.ripple.rippling::after {
+  content: ''; position: absolute; left: var(--rx, 50%); top: var(--ry, 50%); width: 0; height: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.65), rgba(255,255,255,0) 70%);
+  border-radius: 50%; transform: translate(-50%, -50%); animation: rippleAnim 0.55s ease-out; pointer-events: none;
+}
+
+.accordion-body { overflow: hidden; transition: max-height 0.32s cubic-bezier(.22,1,.36,1), opacity 0.25s ease; }
+
+@keyframes spinSlow { to { transform: rotate(360deg); } }
+.spin-slow { animation: spinSlow 6s linear infinite; }
+
+@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+.skeleton { background: linear-gradient(90deg, ${C.bgLight} 25%, #ececea 37%, ${C.bgLight} 63%); background-size: 400px 100%; animation: shimmer 1.4s ease infinite; }
 `;
+
+function rippleEffect(e) {
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  btn.style.setProperty('--rx', `${e.clientX - rect.left}px`);
+  btn.style.setProperty('--ry', `${e.clientY - rect.top}px`);
+  btn.classList.remove('rippling');
+  void btn.offsetWidth;
+  btn.classList.add('rippling');
+}
+
+function AnimatedNumber({ value, formatter = (v) => v, duration = 550 }) {
+  const [display, setDisplay] = useState(value);
+  const prevRef = useRef(value);
+  useEffect(() => {
+    const from = prevRef.current;
+    const to = value;
+    if (from === to) { setDisplay(to); return; }
+    const start = performance.now();
+    let raf;
+    const tick = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplay(from + (to - from) * eased);
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else prevRef.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return <>{formatter(display)}</>;
+}
 
 const fmt = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const hora = (d) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const dataHora = (d) => new Date(d).toLocaleString('pt-BR');
 
+// ---------- PIX (BR Code / EMV) ----------
+function sanitizePix(s) {
+  return (s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, '')
+    .toUpperCase();
+}
+
+function normalizarChavePix(chave) {
+  const c = (chave || '').trim();
+  if (!c) return '';
+  if (c.includes('@')) return c.toLowerCase(); // e-mail
+  // CPF/CNPJ/telefone/chave aleatória: remove pontuação, mantém dígitos, letras e '+' inicial (telefone)
+  const semFormatacao = c.replace(/[.\-/()\s]/g, '');
+  return semFormatacao;
+}
+
+function detectarTipoChavePix(chaveOriginal) {
+  const c = normalizarChavePix(chaveOriginal);
+  if (!c) return null;
+  if (c.includes('@')) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c) ? { tipo: 'E-mail', ok: true } : { tipo: 'E-mail', ok: false, aviso: 'formato de e-mail inválido' };
+  if (/^\+55\d{10,11}$/.test(c)) return { tipo: 'Telefone', ok: true };
+  if (/^\d{11}$/.test(c)) return { tipo: 'CPF ou celular', ok: true, aviso: 'se for celular, use +55 antes do número' };
+  if (/^\d{14}$/.test(c)) return { tipo: 'CNPJ', ok: true };
+  if (/^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(c)) return { tipo: 'Chave aleatória', ok: true };
+  return { tipo: 'Formato não reconhecido', ok: false, aviso: 'confira se a chave está correta' };
+}
+
+function campoPix(id, valor) {
+  const len = String(valor.length).padStart(2, '0');
+  return `${id}${len}${valor}`;
+}
+
+function crc16Pix(payload) {
+  let crc = 0xffff;
+  for (let i = 0; i < payload.length; i++) {
+    crc ^= payload.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) {
+      crc = (crc & 0x8000) !== 0 ? ((crc << 1) ^ 0x1021) : (crc << 1);
+      crc &= 0xffff;
+    }
+  }
+  return crc.toString(16).toUpperCase().padStart(4, '0');
+}
+
+function gerarPayloadPix({ chave, nome, cidade, valor, txid }) {
+  if (!chave) return null;
+  const chaveSan = normalizarChavePix(chave);
+  const nomeSan = sanitizePix(nome).slice(0, 25) || 'PDV';
+  const cidadeSan = sanitizePix(cidade).slice(0, 15) || 'BRASIL';
+  const txidSan = (sanitizePix(txid).replace(/[^A-Z0-9]/g, '').slice(0, 25)) || '***';
+  const valorStr = Number(valor).toFixed(2);
+
+  const merchantAccount = campoPix('00', 'BR.GOV.BCB.PIX') + campoPix('01', chaveSan);
+  const semCrc =
+    campoPix('00', '01') +
+    campoPix('01', '11') +
+    campoPix('26', merchantAccount) +
+    campoPix('52', '0000') +
+    campoPix('53', '986') +
+    campoPix('54', valorStr) +
+    campoPix('58', 'BR') +
+    campoPix('59', nomeSan) +
+    campoPix('60', cidadeSan) +
+    campoPix('62', campoPix('05', txidSan)) +
+    '6304';
+
+  return semCrc + crc16Pix(semCrc);
+}
+
 const PRODUTOS_INICIAIS = [
-  { id: 1, nome: 'Água Mineral 500ml', preco: 3.5, estoque: 48, categoria: 'Bebidas', codigoBarras: '7891000000013' },
-  { id: 2, nome: 'Refrigerante Lata 350ml', preco: 5.0, estoque: 36, categoria: 'Bebidas', codigoBarras: '7891000000020' },
-  { id: 3, nome: 'Café Torrado 500g', preco: 18.9, estoque: 20, categoria: 'Alimentos', codigoBarras: '7891000000037' },
-  { id: 4, nome: 'Arroz Branco 1kg', preco: 7.2, estoque: 40, categoria: 'Alimentos', codigoBarras: '7891000000044' },
-  { id: 5, nome: 'Feijão Carioca 1kg', preco: 8.5, estoque: 35, categoria: 'Alimentos', codigoBarras: '7891000000051' },
-  { id: 6, nome: 'Sabonete 90g', preco: 2.8, estoque: 60, categoria: 'Higiene', codigoBarras: '7891000000068' },
-  { id: 7, nome: 'Papel Higiênico 4un', preco: 9.9, estoque: 25, categoria: 'Higiene', codigoBarras: '7891000000075' },
-  { id: 8, nome: 'Detergente 500ml', preco: 3.2, estoque: 30, categoria: 'Limpeza', codigoBarras: '7891000000082' },
-  { id: 9, nome: 'Sabão em Pó 1kg', preco: 12.5, estoque: 18, categoria: 'Limpeza', codigoBarras: '7891000000099' },
-  { id: 10, nome: 'Biscoito Recheado 130g', preco: 4.3, estoque: 50, categoria: 'Alimentos', codigoBarras: '7891000000105' },
+  { id: 1, nome: 'Água Mineral 500ml', preco: 3.5, custo: 1.8, estoque: 48, estoqueMinimo: 15, categoria: 'Bebidas', codigoBarras: '7891000000013' },
+  { id: 2, nome: 'Refrigerante Lata 350ml', preco: 5.0, custo: 2.6, estoque: 36, estoqueMinimo: 15, categoria: 'Bebidas', codigoBarras: '7891000000020' },
+  { id: 3, nome: 'Café Torrado 500g', preco: 18.9, custo: 11.5, estoque: 20, estoqueMinimo: 10, categoria: 'Alimentos', codigoBarras: '7891000000037' },
+  { id: 4, nome: 'Arroz Branco 1kg', preco: 7.2, custo: 4.3, estoque: 40, estoqueMinimo: 15, categoria: 'Alimentos', codigoBarras: '7891000000044' },
+  { id: 5, nome: 'Feijão Carioca 1kg', preco: 8.5, custo: 5.2, estoque: 35, estoqueMinimo: 15, categoria: 'Alimentos', codigoBarras: '7891000000051' },
+  { id: 6, nome: 'Sabonete 90g', preco: 2.8, custo: 1.3, estoque: 60, estoqueMinimo: 20, categoria: 'Higiene', codigoBarras: '7891000000068' },
+  { id: 7, nome: 'Papel Higiênico 4un', preco: 9.9, custo: 6.0, estoque: 25, estoqueMinimo: 10, categoria: 'Higiene', codigoBarras: '7891000000075' },
+  { id: 8, nome: 'Detergente 500ml', preco: 3.2, custo: 1.7, estoque: 30, estoqueMinimo: 15, categoria: 'Limpeza', codigoBarras: '7891000000082' },
+  { id: 9, nome: 'Sabão em Pó 1kg', preco: 12.5, custo: 7.8, estoque: 18, estoqueMinimo: 10, categoria: 'Limpeza', codigoBarras: '7891000000099' },
+  { id: 10, nome: 'Biscoito Recheado 130g', preco: 4.3, custo: 2.4, estoque: 50, estoqueMinimo: 15, categoria: 'Alimentos', codigoBarras: '7891000000105' },
+];
+
+const FORNECEDORES_INICIAIS = [
+  { id: 1, nome: 'Distribuidora X', contato: 'Carlos Souza', telefone: '(11) 98888-1234', cnpj: '12.345.678/0001-90' },
+  { id: 2, nome: 'Atacado Bebidas Sul', contato: 'Marina Alves', telefone: '(11) 97777-5678', cnpj: '98.765.432/0001-10' },
 ];
 
 const USUARIOS_INICIAIS = [
-  { login: 'admin', senha: 'admin123', pergunta: 'Qual o nome do seu primeiro animal de estimação?', resposta: 'rex' },
+  { login: 'admin', senha: 'admin123', pergunta: 'Qual o nome do seu primeiro animal de estimação?', resposta: 'rex', perfil: 'Administrador', ativo: true },
+];
+
+const CATEGORIAS_INICIAIS = [
+  { id: 1, nome: 'Bebidas' },
+  { id: 2, nome: 'Alimentos' },
+  { id: 3, nome: 'Higiene' },
+  { id: 4, nome: 'Limpeza' },
+];
+
+const PERFIS = [
+  { nome: 'Administrador', descricao: 'Acesso total: vendas, estoque, financeiro, usuários e configurações.', permissoes: ['Vendas', 'Estoque', 'Compras', 'Financeiro', 'Relatórios', 'Usuários', 'Configurações'] },
+  { nome: 'Operador', descricao: 'Acesso ao PDV, vendas e consulta de estoque — sem acesso a financeiro ou configurações.', permissoes: ['Vendas', 'Estoque (consulta)'] },
 ];
 
 const FLOW = [
@@ -116,13 +297,37 @@ export default function App() {
   const [caixa, setCaixa] = useState({ aberto: false, valorAbertura: 0, dataAbertura: null, operador: null });
   const [valorAberturaInput, setValorAberturaInput] = useState('');
 
-  const [pagamento, setPagamento] = useState({ forma: null, valorRecebido: '', desconto: '' });
+  const [pagamento, setPagamento] = useState({ forma: null, valorRecebido: '', desconto: '', clienteId: '' });
   const [vendas, setVendas] = useState([]);
   const [ultimaVenda, setUltimaVenda] = useState(null);
   const [financeiro, setFinanceiro] = useState([]);
   const [sangrias, setSangrias] = useState([]);
+  const [suprimentos, setSuprimentos] = useState([]);
+  const [fornecedores, setFornecedores] = useState(FORNECEDORES_INICIAIS);
+  const [compras, setCompras] = useState([]);
+  const [movimentos, setMovimentos] = useState([]);
+  const [categorias, setCategorias] = useState(CATEGORIAS_INICIAIS);
+  const [clientes, setClientes] = useState([]);
+  const [trocas, setTrocas] = useState([]);
+  const [devolucoes, setDevolucoes] = useState([]);
+  const [contasPagar, setContasPagar] = useState([]);
+  const [contasReceber, setContasReceber] = useState([]);
+  const [auditoria, setAuditoria] = useState([]);
+
+  const [grupoProdutosAberto, setGrupoProdutosAberto] = useState(true);
+  const [grupoComprasAberto, setGrupoComprasAberto] = useState(false);
+  const [grupoVendasAberto, setGrupoVendasAberto] = useState(false);
+  const [grupoFinanceiroAberto, setGrupoFinanceiroAberto] = useState(false);
+  const [grupoCaixaAberto, setGrupoCaixaAberto] = useState(false);
+  const [grupoRelatoriosAberto, setGrupoRelatoriosAberto] = useState(false);
+  const [grupoUsuariosAberto, setGrupoUsuariosAberto] = useState(false);
+  const [grupoConfigAberto, setGrupoConfigAberto] = useState(false);
+
   const [contagemFechamento, setContagemFechamento] = useState('');
   const [ultimoFechamento, setUltimoFechamento] = useState(null);
+  const [suprimentoInput, setSuprimentoInput] = useState({ valor: '', motivo: '' });
+  const [relatoriosAba, setRelatoriosAba] = useState('Vendas');
+  const [configAba, setConfigAba] = useState('Empresa');
 
   const [sangriaInput, setSangriaInput] = useState({ valor: '', motivo: '' });
   const [config, setConfig] = useState({
@@ -131,6 +336,10 @@ export default function App() {
     endereco: '',
     mensagemRodape: 'Obrigado pela preferência, volte sempre!',
     larguraCupom: '58mm',
+    chavePix: '',
+    nomeRecebedorPix: 'Minha Loja',
+    cidadeRecebedorPix: 'SAO PAULO',
+    formasAceitas: { Dinheiro: true, 'Cartão Débito': true, 'Cartão Crédito': true, Pix: true, Credário: true },
   });
 
   const totalCarrinho = useMemo(
@@ -205,9 +414,14 @@ export default function App() {
       setErro('Usuário ou senha inválidos.');
       return;
     }
+    if (user.ativo === false) {
+      setErro('Este usuário está inativo. Contate um administrador.');
+      return;
+    }
     setOperador(user.login);
     setErro('');
     setMsgSucesso('');
+    registrarAuditoria({ acao: 'Login', detalhe: 'Acesso ao sistema', operadorOverride: user.login });
     setScreen('dashboard');
   }
 
@@ -238,7 +452,7 @@ export default function App() {
       setErro('Já existe um usuário com esse login.');
       return;
     }
-    setUsuarios((prev) => [...prev, { login: login.trim(), senha, pergunta: pergunta.trim(), resposta: resposta.trim() }]);
+    setUsuarios((prev) => [...prev, { login: login.trim(), senha, pergunta: pergunta.trim(), resposta: resposta.trim(), perfil: 'Operador', ativo: true }]);
     setCadastro({ login: '', senha: '', confirmar: '', pergunta: '', resposta: '' });
     setErro('');
     setMsgSucesso('Cadastro realizado com sucesso. Faça login.');
@@ -295,6 +509,7 @@ export default function App() {
     setValorAberturaInput('');
     setErro('');
     showToast('Caixa aberto com sucesso');
+    registrarAuditoria({ acao: 'Abertura de Caixa', detalhe: `Valor inicial: ${fmt(valor)}` });
     setScreen('pdv');
   }
 
@@ -331,9 +546,17 @@ export default function App() {
 
   function irParaPagamento() {
     if (carrinho.length === 0) return;
-    setPagamento({ forma: null, valorRecebido: '', desconto: '' });
+    setPagamento({ forma: null, valorRecebido: '', desconto: '', clienteId: '' });
     setErro('');
     setScreen('pagamento');
+  }
+
+  function registrarMovimento({ tipo, produtoId, produtoNome, quantidade, motivo }) {
+    setMovimentos((prev) => [...prev, { id: prev.length + 1, tipo, produtoId, produtoNome, quantidade, motivo, hora: Date.now(), operador }]);
+  }
+
+  function registrarAuditoria({ acao, detalhe, operadorOverride }) {
+    setAuditoria((prev) => [...prev, { id: prev.length + 1, acao, detalhe, operador: operadorOverride || operador, hora: Date.now() }]);
   }
 
   function confirmarPagamento() {
@@ -350,8 +573,13 @@ export default function App() {
       }
       troco = recebido - totalComDesconto;
     }
+    if (pagamento.forma === 'Credário' && !pagamento.clienteId) {
+      setErro('Selecione o cliente para venda no credário.');
+      return;
+    }
 
     const numero = vendas.length + 1;
+    const cliente = pagamento.forma === 'Credário' ? clientes.find((c) => c.id === Number(pagamento.clienteId)) : null;
     const venda = {
       numero,
       itens: carrinho,
@@ -362,6 +590,8 @@ export default function App() {
       troco,
       hora: Date.now(),
       operador,
+      clienteId: cliente ? cliente.id : null,
+      clienteNome: cliente ? cliente.nome : null,
     };
 
     // Baixar estoque
@@ -371,12 +601,21 @@ export default function App() {
         return item ? { ...p, estoque: p.estoque - item.qtd } : p;
       })
     );
+    carrinho.forEach((i) => registrarMovimento({ tipo: 'Venda', produtoId: i.id, produtoNome: i.nome, quantidade: -i.qtd, motivo: `Venda #${String(numero).padStart(4, '0')}` }));
 
-    // Registrar financeiro
-    setFinanceiro((prev) => [
-      ...prev,
-      { id: prev.length + 1, tipo: `Venda #${numero} (${pagamento.forma})`, valor: totalComDesconto, hora: venda.hora },
-    ]);
+    if (pagamento.forma === 'Credário' && cliente) {
+      setClientes((prev) => prev.map((c) => (c.id === cliente.id ? { ...c, saldoDevedor: (c.saldoDevedor || 0) + totalComDesconto } : c)));
+      setContasReceber((prev) => [
+        ...prev,
+        { id: prev.length + 1, descricao: `Credário — Venda #${numero}`, clienteId: cliente.id, clienteNome: cliente.nome, valor: totalComDesconto, vencimento: Date.now() + 30 * 86400000, recebido: false, dataRecebimento: null, origemVenda: numero },
+      ]);
+    } else {
+      // Registrar financeiro (vendas à vista)
+      setFinanceiro((prev) => [
+        ...prev,
+        { id: prev.length + 1, tipo: `Venda #${numero} (${pagamento.forma})`, valor: totalComDesconto, hora: venda.hora },
+      ]);
+    }
 
     setVendas((prev) => [...prev, venda]);
     setUltimaVenda(venda);
@@ -404,6 +643,7 @@ export default function App() {
   function excluirProduto(id) {
     setProdutos((prev) => prev.filter((p) => p.id !== id));
     showToast('Produto removido', 'alerta');
+    registrarAuditoria({ acao: 'Exclusão de Produto', detalhe: `Produto #${id} removido` });
   }
 
   function cancelarVenda(numero) {
@@ -419,8 +659,10 @@ export default function App() {
       ...prev,
       { id: prev.length + 1, tipo: `Estorno Venda #${venda.numero}`, valor: -venda.total, hora: Date.now() },
     ]);
+    venda.itens.forEach((i) => registrarMovimento({ tipo: 'Estorno', produtoId: i.id, produtoNome: i.nome, quantidade: i.qtd, motivo: `Cancelamento Venda #${String(numero).padStart(4, '0')}` }));
     setVendas((prev) => prev.map((v) => (v.numero === numero ? { ...v, cancelada: true } : v)));
     showToast(`Venda #${String(numero).padStart(4, '0')} cancelada`, 'alerta');
+    registrarAuditoria({ acao: 'Cancelamento de Venda', detalhe: `Venda #${String(numero).padStart(4, '0')}` });
   }
 
   function registrarSangria(e) {
@@ -438,6 +680,254 @@ export default function App() {
     setSangriaInput({ valor: '', motivo: '' });
     setErro('');
     showToast('Sangria registrada');
+  }
+
+  function confirmarCompra({ fornecedorId, itens, frete, desconto }) {
+    const fornecedor = fornecedores.find((f) => f.id === fornecedorId);
+    const subtotal = itens.reduce((s, i) => s + i.qtd * i.custo, 0);
+    const total = Math.max(subtotal + (frete || 0) - (desconto || 0), 0);
+    const numero = compras.length + 1;
+    const itensCompra = itens.map((i) => {
+      const p = produtos.find((pp) => pp.id === i.produtoId);
+      return { ...i, nome: p ? p.nome : '?' };
+    });
+    const compra = {
+      numero, fornecedorId, fornecedorNome: fornecedor ? fornecedor.nome : 'Não informado',
+      itens: itensCompra, subtotal, frete: frete || 0, desconto: desconto || 0, total, hora: Date.now(), operador,
+    };
+
+    setProdutos((prev) =>
+      prev.map((p) => {
+        const item = itens.find((i) => i.produtoId === p.id);
+        return item ? { ...p, estoque: p.estoque + item.qtd, custo: item.custo } : p;
+      })
+    );
+    itensCompra.forEach((i) => registrarMovimento({ tipo: 'Compra', produtoId: i.produtoId, produtoNome: i.nome, quantidade: i.qtd, motivo: `Compra #${String(numero).padStart(4, '0')} · ${compra.fornecedorNome}` }));
+    setFinanceiro((prev) => [
+      ...prev,
+      { id: prev.length + 1, tipo: `Compra #${numero} (${compra.fornecedorNome})`, valor: -total, hora: compra.hora },
+    ]);
+    setCompras((prev) => [...prev, compra]);
+    showToast('Compra registrada — estoque e custo atualizados');
+    setScreen('historicoCompras');
+  }
+
+  function adicionarFornecedor(f) {
+    const id = fornecedores.length ? Math.max(...fornecedores.map((x) => x.id)) + 1 : 1;
+    setFornecedores((prev) => [...prev, { id, ...f }]);
+    showToast('Fornecedor cadastrado');
+  }
+
+  function editarFornecedor(id, dados) {
+    setFornecedores((prev) => prev.map((f) => (f.id === id ? { ...f, ...dados } : f)));
+    showToast('Fornecedor atualizado');
+  }
+
+  function excluirFornecedor(id) {
+    setFornecedores((prev) => prev.filter((f) => f.id !== id));
+    showToast('Fornecedor removido', 'alerta');
+    registrarAuditoria({ acao: 'Exclusão de Fornecedor', detalhe: `Fornecedor #${id} removido` });
+  }
+
+  function ajustarEstoque({ produtoId, quantidade, motivo }) {
+    const produto = produtos.find((p) => p.id === produtoId);
+    if (!produto || !quantidade) return;
+    setProdutos((prev) => prev.map((p) => (p.id === produtoId ? { ...p, estoque: Math.max(0, p.estoque + quantidade) } : p)));
+    registrarMovimento({ tipo: 'Ajuste', produtoId, produtoNome: produto.nome, quantidade, motivo: motivo || 'Ajuste manual' });
+    showToast('Estoque ajustado');
+  }
+
+  function aplicarInventario(contagens) {
+    let houveAjuste = false;
+    Object.entries(contagens).forEach(([pid, qtdContada]) => {
+      const produto = produtos.find((p) => p.id === Number(pid));
+      if (!produto) return;
+      const diff = qtdContada - produto.estoque;
+      if (diff === 0) return;
+      houveAjuste = true;
+      registrarMovimento({ tipo: 'Inventário', produtoId: Number(pid), produtoNome: produto.nome, quantidade: diff, motivo: 'Contagem física (inventário)' });
+    });
+    setProdutos((prev) => prev.map((p) => (contagens[p.id] !== undefined ? { ...p, estoque: contagens[p.id] } : p)));
+    showToast(houveAjuste ? 'Inventário aplicado — estoque atualizado' : 'Nenhuma divergência encontrada');
+  }
+
+  // ---------- Categorias ----------
+  function adicionarCategoria(nome) {
+    if (!nome.trim()) return;
+    if (categorias.some((c) => c.nome.toLowerCase() === nome.trim().toLowerCase())) { showToast('Categoria já existe', 'alerta'); return; }
+    const id = categorias.length ? Math.max(...categorias.map((c) => c.id)) + 1 : 1;
+    setCategorias((prev) => [...prev, { id, nome: nome.trim() }]);
+    showToast('Categoria cadastrada');
+  }
+  function editarCategoria(id, nome) {
+    const atual = categorias.find((c) => c.id === id);
+    if (!atual || !nome.trim()) return;
+    setProdutos((prev) => prev.map((p) => (p.categoria === atual.nome ? { ...p, categoria: nome.trim() } : p)));
+    setCategorias((prev) => prev.map((c) => (c.id === id ? { ...c, nome: nome.trim() } : c)));
+    showToast('Categoria atualizada');
+  }
+  function excluirCategoria(id) {
+    setCategorias((prev) => prev.filter((c) => c.id !== id));
+    showToast('Categoria removida', 'alerta');
+  }
+
+  // ---------- Clientes ----------
+  function adicionarCliente(c) {
+    const id = clientes.length ? Math.max(...clientes.map((x) => x.id)) + 1 : 1;
+    setClientes((prev) => [...prev, { id, saldoDevedor: 0, ...c }]);
+    showToast('Cliente cadastrado');
+  }
+  function editarCliente(id, dados) {
+    setClientes((prev) => prev.map((c) => (c.id === id ? { ...c, ...dados } : c)));
+    showToast('Cliente atualizado');
+  }
+  function excluirCliente(id) {
+    setClientes((prev) => prev.filter((c) => c.id !== id));
+    showToast('Cliente removido', 'alerta');
+  }
+
+  // ---------- Trocas ----------
+  function confirmarTroca({ produtoSaidaId, qtdSaida, produtoEntradaId, qtdEntrada, motivo }) {
+    const pSai = produtos.find((p) => p.id === produtoSaidaId);
+    const pEnt = produtos.find((p) => p.id === produtoEntradaId);
+    if (!pSai || !pEnt) return;
+    const diferenca = pEnt.preco * qtdEntrada - pSai.preco * qtdSaida;
+    const numero = trocas.length + 1;
+    setProdutos((prev) => prev.map((p) => {
+      if (p.id === produtoSaidaId) return { ...p, estoque: p.estoque + qtdSaida };
+      if (p.id === produtoEntradaId) return { ...p, estoque: Math.max(0, p.estoque - qtdEntrada) };
+      return p;
+    }));
+    registrarMovimento({ tipo: 'Estorno', produtoId: pSai.id, produtoNome: pSai.nome, quantidade: qtdSaida, motivo: `Troca #${numero} — devolução` });
+    registrarMovimento({ tipo: 'Venda', produtoId: pEnt.id, produtoNome: pEnt.nome, quantidade: -qtdEntrada, motivo: `Troca #${numero} — novo item` });
+    if (diferenca !== 0) {
+      setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Troca #${numero} (diferença)`, valor: diferenca, hora: Date.now() }]);
+    }
+    setTrocas((prev) => [...prev, { numero, produtoSaida: pSai.nome, qtdSaida, produtoEntrada: pEnt.nome, qtdEntrada, diferenca, motivo: motivo || '—', hora: Date.now(), operador }]);
+    showToast('Troca registrada');
+  }
+
+  // ---------- Devoluções ----------
+  function confirmarDevolucao({ vendaNumero, itens, motivo }) {
+    const numero = devolucoes.length + 1;
+    const valorTotal = itens.reduce((s, i) => s + i.preco * i.qtd, 0);
+    setProdutos((prev) => prev.map((p) => {
+      const item = itens.find((i) => i.produtoId === p.id);
+      return item ? { ...p, estoque: p.estoque + item.qtd } : p;
+    }));
+    itens.forEach((i) => registrarMovimento({ tipo: 'Estorno', produtoId: i.produtoId, produtoNome: i.nome, quantidade: i.qtd, motivo: `Devolução #${numero}${vendaNumero ? ` (Venda #${vendaNumero})` : ''}` }));
+    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Devolução #${numero}`, valor: -valorTotal, hora: Date.now() }]);
+    setDevolucoes((prev) => [...prev, { numero, vendaNumero: vendaNumero || null, itens, valorTotal, motivo: motivo || '—', hora: Date.now(), operador }]);
+    showToast('Devolução registrada — estoque e financeiro atualizados');
+  }
+
+  // ---------- Suprimento (entrada de dinheiro no caixa) ----------
+  function registrarSuprimento(e) {
+    e.preventDefault();
+    if (!caixa.aberto) { setErro('Abra o caixa antes de registrar um suprimento.'); return; }
+    const valor = parseFloat(String(suprimentoInput.valor).replace(',', '.'));
+    if (isNaN(valor) || valor <= 0) { setErro('Informe um valor de suprimento válido.'); return; }
+    const registro = { id: suprimentos.length + 1, valor, motivo: suprimentoInput.motivo.trim() || 'Não informado', hora: Date.now(), operador };
+    setSuprimentos((prev) => [...prev, registro]);
+    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Suprimento: ${registro.motivo}`, valor, hora: registro.hora }]);
+    setSuprimentoInput({ valor: '', motivo: '' });
+    setErro('');
+    showToast('Suprimento registrado');
+  }
+
+  // ---------- Contas a pagar / receber ----------
+  function adicionarContaPagar(c) {
+    setContasPagar((prev) => [...prev, { id: prev.length + 1, pago: false, dataPagamento: null, ...c }]);
+    showToast('Conta a pagar cadastrada');
+  }
+  function pagarConta(id) {
+    const conta = contasPagar.find((c) => c.id === id);
+    if (!conta || conta.pago) return;
+    setContasPagar((prev) => prev.map((c) => (c.id === id ? { ...c, pago: true, dataPagamento: Date.now() } : c)));
+    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Pagamento: ${conta.descricao}`, valor: -conta.valor, hora: Date.now() }]);
+    showToast('Conta paga e lançada no financeiro');
+  }
+  function excluirContaPagar(id) {
+    setContasPagar((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  function adicionarContaReceber(c) {
+    setContasReceber((prev) => [...prev, { id: prev.length + 1, recebido: false, dataRecebimento: null, ...c }]);
+    showToast('Conta a receber cadastrada');
+  }
+  function receberConta(id) {
+    const conta = contasReceber.find((c) => c.id === id);
+    if (!conta || conta.recebido) return;
+    setContasReceber((prev) => prev.map((c) => (c.id === id ? { ...c, recebido: true, dataRecebimento: Date.now() } : c)));
+    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Recebimento: ${conta.descricao}`, valor: conta.valor, hora: Date.now() }]);
+    if (conta.clienteId) {
+      setClientes((prev) => prev.map((cl) => (cl.id === conta.clienteId ? { ...cl, saldoDevedor: Math.max(0, (cl.saldoDevedor || 0) - conta.valor) } : cl)));
+    }
+    showToast('Recebimento confirmado');
+  }
+  function excluirContaReceber(id) {
+    setContasReceber((prev) => prev.filter((c) => c.id !== id));
+  }
+
+  // ---------- Usuários ----------
+  function alternarAtivoUsuario(login) {
+    setUsuarios((prev) => prev.map((u) => (u.login === login ? { ...u, ativo: u.ativo === false ? true : false } : u)));
+    showToast('Status do usuário atualizado');
+  }
+  function alterarPerfilUsuario(login, perfil) {
+    setUsuarios((prev) => prev.map((u) => (u.login === login ? { ...u, perfil } : u)));
+    showToast('Perfil atualizado');
+  }
+  function excluirUsuario(login) {
+    if (login === operador) { showToast('Você não pode remover o usuário logado', 'alerta'); return; }
+    setUsuarios((prev) => prev.filter((u) => u.login !== login));
+    registrarAuditoria({ acao: 'Exclusão de Usuário', detalhe: login });
+    showToast('Usuário removido', 'alerta');
+  }
+
+  // ---------- Backup ----------
+  function exportarBackup() {
+    const dados = { produtos, categorias, clientes, fornecedores, compras, vendas, trocas, devolucoes, financeiro, sangrias, suprimentos, contasPagar, contasReceber, movimentos, auditoria, usuarios, config, exportadoEm: Date.now() };
+    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup-pdv-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Backup exportado');
+  }
+
+  function importarBackup(dados) {
+    try {
+      if (dados.produtos) setProdutos(dados.produtos);
+      if (dados.categorias) setCategorias(dados.categorias);
+      if (dados.clientes) setClientes(dados.clientes);
+      if (dados.fornecedores) setFornecedores(dados.fornecedores);
+      if (dados.compras) setCompras(dados.compras);
+      if (dados.vendas) setVendas(dados.vendas);
+      if (dados.trocas) setTrocas(dados.trocas);
+      if (dados.devolucoes) setDevolucoes(dados.devolucoes);
+      if (dados.financeiro) setFinanceiro(dados.financeiro);
+      if (dados.sangrias) setSangrias(dados.sangrias);
+      if (dados.suprimentos) setSuprimentos(dados.suprimentos);
+      if (dados.contasPagar) setContasPagar(dados.contasPagar);
+      if (dados.contasReceber) setContasReceber(dados.contasReceber);
+      if (dados.movimentos) setMovimentos(dados.movimentos);
+      if (dados.auditoria) setAuditoria(dados.auditoria);
+      if (dados.usuarios) setUsuarios(dados.usuarios);
+      if (dados.config) setConfig(dados.config);
+      showToast('Backup restaurado com sucesso');
+    } catch {
+      showToast('Arquivo de backup inválido', 'alerta');
+    }
+  }
+
+  function resetarSistema() {
+    setProdutos(PRODUTOS_INICIAIS); setCategorias(CATEGORIAS_INICIAIS); setClientes([]); setFornecedores(FORNECEDORES_INICIAIS);
+    setCompras([]); setVendas([]); setTrocas([]); setDevolucoes([]); setFinanceiro([]); setSangrias([]); setSuprimentos([]);
+    setContasPagar([]); setContasReceber([]); setMovimentos([]); setAuditoria([]); setCaixa({ aberto: false, valorAbertura: 0, dataAbertura: null, operador: null });
+    showToast('Sistema restaurado para os dados iniciais', 'alerta');
   }
 
   function imprimirCupomTermico(venda) {
@@ -511,6 +1001,7 @@ export default function App() {
     setContagemFechamento('');
     setErro('');
     showToast('Caixa fechado com sucesso');
+    registrarAuditoria({ acao: 'Fechamento de Caixa', detalhe: `Diferença: ${fmt(diferenca)}` });
     setScreen('dashboard');
   }
 
@@ -519,14 +1010,16 @@ export default function App() {
     const trocarView = (v) => { setAuthScreen(v); setErro(''); setMsgSucesso(''); };
 
     return (
-      <div style={{ minHeight: '100%', background: C.bgDark, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',sans-serif", padding: 20 }}>
+      <div className="gradient-bg" style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter',sans-serif", padding: 20, position: 'relative', overflow: 'hidden' }}>
         <style>{FONTS}</style>
-        <div style={{ width: 360, background: C.bgDark2, border: `1px solid ${C.borderDark}`, borderRadius: 14, padding: 32 }}>
+        <div className="blob" style={{ width: 320, height: 320, background: C.primary, top: '10%', left: '8%' }} />
+        <div className="blob" style={{ width: 260, height: 260, background: C.accent, bottom: '8%', right: '10%', animationDelay: '3s' }} />
+        <div className="pop-in" style={{ width: 360, background: C.bgDark2, border: `1px solid ${C.borderDark}`, borderRadius: 14, padding: 32, position: 'relative', zIndex: 1, boxShadow: '0 30px 60px rgba(0,0,0,0.35)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Store size={19} color={C.bgDark} strokeWidth={2.4} />
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: C.primary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Store size={19} color={C.textLight} strokeWidth={2.4} />
             </div>
-            <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 20, color: C.textLight, letterSpacing: -0.3 }}>PDV Terminal</span>
+            <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, fontSize: 20, color: C.textLight, letterSpacing: -0.3 }}>PDV Terminal</span>
           </div>
 
           {msgSucesso && (
@@ -572,7 +1065,7 @@ export default function App() {
 
               {erro && <ErroBox erro={erro} />}
 
-              <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+              <button type="submit" onMouseDown={rippleEffect} className="ripple" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                 Entrar
               </button>
 
@@ -591,7 +1084,7 @@ export default function App() {
               <button type="button" onClick={() => trocarView('login')} style={{ ...btnGhost, color: C.muted, marginTop: 16, marginBottom: 10 }}>
                 <ArrowLeft size={13} /> Voltar
               </button>
-              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Space Grotesk',sans-serif" }}>Criar conta de operador</p>
+              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Criar conta de operador</p>
               <p style={{ color: C.muted, fontSize: 12.5, marginTop: 0, marginBottom: 18 }}>A pergunta de segurança é usada para recuperar a senha.</p>
 
               <FieldDark icon={User} placeholder="Login desejado" value={cadastro.login} onChange={(v) => setCadastro({ ...cadastro, login: v })} />
@@ -602,7 +1095,7 @@ export default function App() {
 
               {erro && <ErroBox erro={erro} />}
 
-              <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+              <button type="submit" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                 <UserPlus size={15} /> Cadastrar
               </button>
             </form>
@@ -614,14 +1107,14 @@ export default function App() {
               <button type="button" onClick={() => { trocarView('login'); setEsqueci({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' }); }} style={{ ...btnGhost, color: C.muted, marginTop: 16, marginBottom: 10 }}>
                 <ArrowLeft size={13} /> Voltar ao login
               </button>
-              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Space Grotesk',sans-serif" }}>Recuperar senha</p>
+              <p style={{ color: C.textLight, fontSize: 15, fontWeight: 700, marginTop: 0, marginBottom: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>Recuperar senha</p>
 
               {esqueci.etapa === 1 && (
                 <form onSubmit={handleEsqueciBuscar}>
                   <p style={{ color: C.muted, fontSize: 12.5, marginTop: 0, marginBottom: 18 }}>Informe seu login para localizar sua pergunta de segurança.</p>
                   <FieldDark icon={User} placeholder="Seu login" value={esqueci.login} onChange={(v) => setEsqueci({ ...esqueci, login: v })} last />
                   {erro && <ErroBox erro={erro} />}
-                  <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+                  <button type="submit" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                     Continuar
                   </button>
                 </form>
@@ -637,7 +1130,7 @@ export default function App() {
                   <FieldDark icon={Lock} type="password" placeholder="Nova senha" value={esqueci.novaSenha} onChange={(v) => setEsqueci({ ...esqueci, novaSenha: v })} />
                   <FieldDark icon={Lock} type="password" placeholder="Confirmar nova senha" value={esqueci.confirmar} onChange={(v) => setEsqueci({ ...esqueci, confirmar: v })} last />
                   {erro && <ErroBox erro={erro} />}
-                  <button type="submit" style={{ width: '100%', background: C.accent, color: C.bgDark, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif" }}>
+                  <button type="submit" style={{ width: '100%', background: C.primary, color: C.textLight, border: 'none', borderRadius: 8, padding: '11px 0', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                     Redefinir senha
                   </button>
                 </form>
@@ -650,18 +1143,145 @@ export default function App() {
   }
 
   // ---------- SHELL (post-login) ----------
-  const navItems = [
+  const navItemsTop = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'pdv', label: 'PDV', icon: ShoppingCart, disabled: !caixa.aberto },
-    { key: 'relatorios', label: 'Relatórios', icon: BarChart3 },
+  ];
+  const clienteItem = { key: 'clientes', label: 'Clientes', icon: Users };
+
+  const alertasEstoqueCount = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10)).length;
+  const contasPagarPendentesCount = contasPagar.filter((c) => !c.pago).length;
+  const contasReceberPendentesCount = contasReceber.filter((c) => !c.recebido).length;
+
+  const produtosItems = [
     { key: 'produtos', label: 'Produtos', icon: Package },
+    { key: 'categorias', label: 'Categorias', icon: Tags },
+    { key: 'estoqueVisao', label: 'Estoque', icon: Boxes, badge: alertasEstoqueCount },
+    { key: 'movimentacoes', label: 'Movimentações', icon: History },
+    { key: 'inventario', label: 'Inventário', icon: ClipboardList },
+  ];
+  const comprasItems = [
+    { key: 'novaCompra', label: 'Nova Compra', icon: Plus },
+    { key: 'historicoCompras', label: 'Histórico', icon: ListChecks },
+    { key: 'fornecedores', label: 'Fornecedores', icon: Truck },
+  ];
+  const vendasItems = [
     { key: 'vendas', label: 'Vendas', icon: ListChecks },
-    { key: 'financeiro', label: 'Financeiro', icon: Receipt },
+    { key: 'trocas', label: 'Trocas', icon: ArrowLeftRight },
+    { key: 'devolucoes', label: 'Devoluções', icon: Undo2 },
+    { key: 'credario', label: 'Credário', icon: CreditCard },
   ];
-  const navItemsCaixa = [
+  const financeiroItems = [
+    { key: 'fluxoCaixa', label: 'Fluxo de Caixa', icon: Activity },
+    { key: 'contasPagar', label: 'Contas a Pagar', icon: ArrowUpCircle, badge: contasPagarPendentesCount },
+    { key: 'contasReceber', label: 'Contas a Receber', icon: ArrowDownCircle, badge: contasReceberPendentesCount },
+    { key: 'receitas', label: 'Receitas', icon: TrendingUp },
+    { key: 'despesas', label: 'Despesas', icon: TrendingDown },
+  ];
+  const caixaItems = [
+    { key: 'abrirCaixa', label: 'Abrir Caixa', icon: Wallet, disabled: caixa.aberto },
     { key: 'sangria', label: 'Sangria', icon: ArrowDownCircle, disabled: !caixa.aberto },
-    { key: 'fecharCaixa', label: 'Fechar Caixa', icon: Wallet, disabled: !caixa.aberto, danger: true },
+    { key: 'suprimento', label: 'Suprimento', icon: ArrowUpCircle, disabled: !caixa.aberto },
+    { key: 'fecharCaixa', label: 'Fechar Caixa', icon: Wallet, disabled: !caixa.aberto, onClick: () => { setContagemFechamento(''); setScreen('fecharCaixa'); } },
   ];
+  const relatoriosItems = ['Vendas', 'Produtos', 'Estoque', 'Financeiro', 'Operadores', 'Lucro'].map((aba) => ({
+    key: `relatorios-${aba}`, label: aba, icon: BarChart3,
+    onClick: () => { setRelatoriosAba(aba); setErro(''); setScreen('relatorios'); },
+    isActive: () => screen === 'relatorios' && relatoriosAba === aba,
+  }));
+  const usuariosItems = [
+    { key: 'usuarios', label: 'Usuários', icon: UserCog },
+    { key: 'perfis', label: 'Perfis', icon: ShieldCheck },
+    { key: 'auditoria', label: 'Auditoria', icon: History },
+  ];
+  const configItems = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Sistema'].map((aba) => ({
+    key: `config-${aba}`, label: aba, icon: Settings,
+    onClick: () => { setConfigAba(aba); setErro(''); setScreen('configuracoes'); },
+    isActive: () => screen === 'configuracoes' && configAba === aba,
+  }));
+
+  const grupos = [
+    { key: 'grp-produtos', label: 'Produtos', Icon: Package, aberto: grupoProdutosAberto, setAberto: setGrupoProdutosAberto, itens: produtosItems },
+    { key: 'grp-compras', label: 'Compras', Icon: ShoppingBag, aberto: grupoComprasAberto, setAberto: setGrupoComprasAberto, itens: comprasItems },
+    { key: 'grp-vendas', label: 'Vendas', Icon: Receipt, aberto: grupoVendasAberto, setAberto: setGrupoVendasAberto, itens: vendasItems },
+    { key: 'grp-financeiro', label: 'Financeiro', Icon: TrendingUp, aberto: grupoFinanceiroAberto, setAberto: setGrupoFinanceiroAberto, itens: financeiroItems },
+    { key: 'grp-caixa', label: 'Caixa', Icon: Wallet, aberto: grupoCaixaAberto, setAberto: setGrupoCaixaAberto, itens: caixaItems },
+    { key: 'grp-relatorios', label: 'Relatórios', Icon: BarChart3, aberto: grupoRelatoriosAberto, setAberto: setGrupoRelatoriosAberto, itens: relatoriosItems },
+    { key: 'grp-usuarios', label: 'Usuários', Icon: UserCog, aberto: grupoUsuariosAberto, setAberto: setGrupoUsuariosAberto, itens: usuariosItems },
+    { key: 'grp-config', label: 'Configurações', Icon: Cog, aberto: grupoConfigAberto, setAberto: setGrupoConfigAberto, itens: configItems },
+  ];
+  const gruposAtivos = grupos.map((g) => ({ ...g, ativo: g.itens.some((i) => (i.isActive ? i.isActive() : screen === i.key)) }));
+
+  function renderNavBtn(item) {
+    const Icon = item.icon;
+    const active = screen === item.key || (item.key === 'pdv' && ['pdv', 'pagamento', 'cupom'].includes(screen));
+    return (
+      <button
+        key={item.key}
+        className="nav-btn"
+        disabled={item.disabled}
+        onClick={() => { setErro(''); setScreen(item.key); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, border: 'none',
+          background: active ? C.primarySoft : 'transparent',
+          color: item.disabled ? C.mutedDark : active ? C.primaryDark : C.muted,
+          fontSize: 13.5, fontWeight: active ? 600 : 500, cursor: item.disabled ? 'not-allowed' : 'pointer', textAlign: 'left',
+        }}
+      >
+        <Icon size={16} strokeWidth={2} />
+        {item.label}
+      </button>
+    );
+  }
+
+  function renderSubNavBtn(item) {
+    const Icon = item.icon;
+    const active = item.isActive ? item.isActive() : screen === item.key;
+    return (
+      <button
+        key={item.key}
+        className="nav-btn"
+        disabled={item.disabled}
+        onClick={() => { setErro(''); if (item.onClick) item.onClick(); else setScreen(item.key); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 9, padding: '7px 12px 7px 30px', borderRadius: 9, border: 'none',
+          background: active ? C.primarySoft : 'transparent', color: item.disabled ? C.mutedDark : active ? C.primaryDark : C.muted,
+          fontSize: 12.5, fontWeight: active ? 600 : 500, cursor: item.disabled ? 'not-allowed' : 'pointer', textAlign: 'left', position: 'relative',
+        }}
+      >
+        {active && <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 4, height: 4, borderRadius: 99, background: C.primary }} />}
+        <Icon size={13} strokeWidth={2} />
+        {item.label}
+        {!!item.badge && (
+          <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, background: C.danger, color: '#fff', borderRadius: 99, padding: '1px 6px' }}>{item.badge}</span>
+        )}
+      </button>
+    );
+  }
+
+  function GrupoNav({ label, Icon, aberto, ativo, onToggle, itens }) {
+    const mostrarAberto = aberto || ativo;
+    return (
+      <div>
+        <button
+          className="nav-btn"
+          onClick={onToggle}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 9, border: 'none',
+            background: ativo && !aberto ? C.primarySoft : 'transparent', color: ativo ? C.primaryDark : C.muted,
+            fontSize: 13.5, fontWeight: ativo ? 600 : 500, cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <Icon size={16} strokeWidth={2} />
+          {label}
+          <ChevronDown size={14} style={{ marginLeft: 'auto', transition: 'transform 0.25s cubic-bezier(.22,1,.36,1)', transform: mostrarAberto ? 'rotate(0deg)' : 'rotate(-90deg)' }} />
+        </button>
+        <div className="accordion-body" style={{ maxHeight: mostrarAberto ? itens.length * 34 + 8 : 0, opacity: mostrarAberto ? 1 : 0 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 1 }}>{itens.map(renderSubNavBtn)}</div>
+        </div>
+      </div>
+    );
+  }
 
   const stepIdx = FLOW.findIndex((f) => f.key === screen);
 
@@ -670,93 +1290,42 @@ export default function App() {
       <style>{FONTS}</style>
 
       {/* SIDEBAR */}
-      <div style={{ width: 208, background: C.bgDark, display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+      <div style={{ width: 216, background: C.panel, display: 'flex', flexDirection: 'column', flexShrink: 0, borderRight: `1px solid ${C.borderLight}` }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '20px 18px 16px' }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Store size={16} color={C.bgDark} strokeWidth={2.4} />
+          <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(135deg, ${C.primary}, ${C.primaryDark})`, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 10px rgba(109,93,246,0.35)' }}>
+            <Store size={16} color="#fff" strokeWidth={2.4} />
           </div>
-          <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: 15.5, color: C.textLight }}>PDV Terminal</span>
+          <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 700, fontSize: 15.5, color: C.textDark }}>PDV Terminal</span>
         </div>
 
-        <div style={{ margin: '4px 14px 18px', padding: '9px 12px', borderRadius: 9, background: caixa.aberto ? 'rgba(45,212,191,0.12)' : C.bgDark2, border: `1px solid ${caixa.aberto ? 'rgba(45,212,191,0.4)' : C.borderDark}` }}>
+        <div style={{ margin: '4px 14px 18px', padding: '9px 12px', borderRadius: 11, background: caixa.aberto ? 'rgba(45,212,191,0.10)' : C.bgLight, border: `1px solid ${caixa.aberto ? 'rgba(45,212,191,0.35)' : C.borderLight}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 99, background: caixa.aberto ? C.accent : C.mutedDark, boxShadow: caixa.aberto ? `0 0 6px ${C.accent}` : 'none' }} />
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: caixa.aberto ? C.accent : C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            <span className={caixa.aberto ? 'pulse-dot' : ''} style={{ width: 7, height: 7, borderRadius: 99, background: caixa.aberto ? C.accent : C.mutedDark, boxShadow: caixa.aberto ? `0 0 6px ${C.accent}` : 'none' }} />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: caixa.aberto ? C.accentDark : C.muted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
               Caixa {caixa.aberto ? 'Aberto' : 'Fechado'}
             </span>
           </div>
           {caixa.aberto && (
-            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: C.textLight, marginTop: 4 }}>{fmt(valorEsperadoCaixa)}</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: C.textDark, marginTop: 4, fontWeight: 600 }}>{fmt(valorEsperadoCaixa)}</div>
           )}
         </div>
 
-        <div style={{ flex: 1, padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2, overflow: 'auto' }}>
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = screen === item.key || (item.key === 'pdv' && ['pdv', 'pagamento', 'cupom', 'abrirCaixa'].includes(screen));
-            return (
-              <button
-                key={item.key}
-                className="nav-btn"
-                disabled={item.disabled}
-                onClick={() => { setErro(''); setScreen(item.key); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none',
-                  background: active ? C.bgDark2 : 'transparent',
-                  color: item.disabled ? C.mutedDark : active ? C.textLight : C.muted,
-                  fontSize: 13.5, fontWeight: 500, cursor: item.disabled ? 'not-allowed' : 'pointer', textAlign: 'left',
-                }}
-              >
-                <Icon size={16} strokeWidth={2} />
-                {item.label}
-              </button>
-            );
-          })}
+        <div className="scroll-thin" style={{ flex: 1, padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2, overflow: 'auto' }}>
+          {navItemsTop.map(renderNavBtn)}
+          {renderNavBtn(clienteItem)}
 
-          <div style={{ height: 1, background: C.borderDark, margin: '8px 2px' }} />
+          <div style={{ height: 1, background: C.borderLight, margin: '6px 2px' }} />
 
-          {navItemsCaixa.map((item) => {
-            const Icon = item.icon;
-            const active = screen === item.key;
-            return (
-              <button
-                key={item.key}
-                className="nav-btn"
-                disabled={item.disabled}
-                onClick={() => { setErro(''); if (item.key === 'fecharCaixa') setContagemFechamento(''); setScreen(item.key); }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none',
-                  background: active ? C.bgDark2 : 'transparent',
-                  color: item.disabled ? C.mutedDark : active ? (item.danger ? '#FCA5A5' : C.textLight) : (item.danger ? '#E88A8A' : C.muted),
-                  fontSize: 13.5, fontWeight: 500, cursor: item.disabled ? 'not-allowed' : 'pointer', textAlign: 'left',
-                }}
-              >
-                <Icon size={16} strokeWidth={2} />
-                {item.label}
-              </button>
-            );
-          })}
+          {gruposAtivos.map((g) => (
+            <GrupoNav key={g.key} label={g.label} Icon={g.Icon} aberto={g.aberto} ativo={g.ativo} onToggle={() => g.setAberto((v) => !v)} itens={g.itens} />
+          ))}
         </div>
 
-        <div style={{ padding: '4px 10px' }}>
-          <button
-            onClick={() => { setErro(''); setScreen('configuracoes'); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: 'none', width: '100%',
-              background: screen === 'configuracoes' ? C.bgDark2 : 'transparent',
-              color: screen === 'configuracoes' ? C.textLight : C.muted, fontSize: 13.5, fontWeight: 500, cursor: 'pointer', textAlign: 'left',
-            }}
-          >
-            <Settings size={16} strokeWidth={2} />
-            Configurações
-          </button>
-        </div>
-
-        <div style={{ padding: 14, borderTop: `1px solid ${C.borderDark}`, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 99, background: C.bgDark3, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <User size={14} color={C.muted} />
+        <div style={{ padding: 14, borderTop: `1px solid ${C.borderLight}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 99, background: C.primarySoft, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <User size={14} color={C.primaryDark} />
           </div>
-          <span style={{ fontSize: 12.5, color: C.textLight, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{operador}</span>
+          <span style={{ fontSize: 12.5, color: C.textDark, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{operador}</span>
           <button onClick={handleLogout} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
             <LogOut size={15} color={C.muted} />
           </button>
@@ -787,9 +1356,9 @@ export default function App() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                     <div style={{
                       width: 22, height: 22, borderRadius: 99, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: done ? C.accent : active ? C.bgDark : C.bgLight,
-                      border: `1px solid ${done ? C.accent : active ? C.bgDark : C.borderLight}`,
-                      fontSize: 11, fontWeight: 700, color: done ? C.bgDark : active ? C.textLight : C.muted,
+                      background: done ? C.accent : active ? C.primary : C.bgLight,
+                      border: `1px solid ${done ? C.accent : active ? C.primary : C.borderLight}`,
+                      fontSize: 11, fontWeight: 700, color: done ? '#fff' : active ? '#fff' : C.muted,
                     }}>
                       {done ? <Check size={12} /> : i + 1}
                     </div>
@@ -833,7 +1402,7 @@ export default function App() {
           )}
 
           {screen === 'pagamento' && (
-            <PagamentoScreen subtotal={totalCarrinho} desconto={descontoAplicado} total={totalComDesconto} pagamento={pagamento} setPagamento={setPagamento} onConfirmar={confirmarPagamento} onVoltar={() => setScreen('pdv')} />
+            <PagamentoScreen subtotal={totalCarrinho} desconto={descontoAplicado} total={totalComDesconto} pagamento={pagamento} setPagamento={setPagamento} onConfirmar={confirmarPagamento} onVoltar={() => setScreen('pdv')} config={config} clientes={clientes} />
           )}
 
           {screen === 'cupom' && ultimaVenda && (
@@ -855,21 +1424,71 @@ export default function App() {
             />
           )}
 
+          {screen === 'suprimento' && (
+            <SuprimentoScreen suprimentoInput={suprimentoInput} setSuprimentoInput={setSuprimentoInput} onConfirmar={registrarSuprimento} historico={suprimentos.filter((s) => caixa.dataAbertura && s.hora >= caixa.dataAbertura)} />
+          )}
+
           {screen === 'relatorios' && (
-            <RelatoriosScreen vendas={vendas} sangrias={sangrias} />
+            <RelatoriosScreen aba={relatoriosAba} setAba={setRelatoriosAba} vendas={vendas} sangrias={sangrias} produtos={produtos} financeiro={financeiro} />
           )}
 
           {screen === 'configuracoes' && (
-            <ConfiguracoesScreen config={config} setConfig={setConfig} />
+            <ConfiguracoesScreen aba={configAba} setAba={setConfigAba} config={config} setConfig={setConfig} onExportar={exportarBackup} onImportar={importarBackup} onResetar={resetarSistema} />
           )}
 
           {screen === 'produtos' && (
-            <ProdutosScreen produtos={produtos} onAdd={adicionarProdutoCadastro} onEdit={editarProduto} onDelete={excluirProduto} />
+            <ProdutosScreen produtos={produtos} categorias={categorias} onAdd={adicionarProdutoCadastro} onEdit={editarProduto} onDelete={excluirProduto} />
+          )}
+
+          {screen === 'categorias' && (
+            <CategoriasScreen categorias={categorias} produtos={produtos} onAdd={adicionarCategoria} onEdit={editarCategoria} onDelete={excluirCategoria} />
+          )}
+
+          {screen === 'estoqueVisao' && (
+            <EstoqueVisaoScreen produtos={produtos} onAjustar={ajustarEstoque} />
+          )}
+
+          {screen === 'movimentacoes' && <MovimentacoesScreen movimentos={movimentos} />}
+
+          {screen === 'inventario' && <InventarioScreen produtos={produtos} onAplicar={aplicarInventario} />}
+
+          {screen === 'novaCompra' && (
+            <NovaCompraScreen produtos={produtos} fornecedores={fornecedores} onConfirmar={confirmarCompra} />
+          )}
+
+          {screen === 'historicoCompras' && <HistoricoComprasScreen compras={compras} />}
+
+          {screen === 'fornecedores' && (
+            <FornecedoresScreen fornecedores={fornecedores} onAdd={adicionarFornecedor} onEdit={editarFornecedor} onDelete={excluirFornecedor} />
+          )}
+
+          {screen === 'clientes' && (
+            <ClientesScreen clientes={clientes} onAdd={adicionarCliente} onEdit={editarCliente} onDelete={excluirCliente} />
           )}
 
           {screen === 'vendas' && <VendasScreen vendas={vendas} onCancelar={cancelarVenda} />}
 
-          {screen === 'financeiro' && <FinanceiroScreen financeiro={financeiro} />}
+          {screen === 'trocas' && <TrocasScreen produtos={produtos} trocas={trocas} onConfirmar={confirmarTroca} />}
+
+          {screen === 'devolucoes' && <DevolucoesScreen vendas={vendas} devolucoes={devolucoes} onConfirmar={confirmarDevolucao} />}
+
+          {screen === 'credario' && <CredarioScreen clientes={clientes} contasReceber={contasReceber} onReceber={receberConta} />}
+
+          {screen === 'fluxoCaixa' && <FluxoCaixaScreen financeiro={financeiro} />}
+
+          {screen === 'contasPagar' && <ContasPagarScreen contas={contasPagar} fornecedores={fornecedores} onAdd={adicionarContaPagar} onPagar={pagarConta} onDelete={excluirContaPagar} />}
+
+          {screen === 'contasReceber' && <ContasReceberScreen contas={contasReceber} clientes={clientes} onAdd={adicionarContaReceber} onReceber={receberConta} onDelete={excluirContaReceber} />}
+
+          {screen === 'receitas' && <ReceitasDespesasScreen financeiro={financeiro} tipo="receitas" />}
+
+          {screen === 'despesas' && <ReceitasDespesasScreen financeiro={financeiro} tipo="despesas" />}
+
+          {screen === 'usuarios' && <UsuariosScreen usuarios={usuarios} operadorAtual={operador} onToggleAtivo={alternarAtivoUsuario} onAlterarPerfil={alterarPerfilUsuario} onDelete={excluirUsuario} />}
+
+          {screen === 'perfis' && <PerfisScreen usuarios={usuarios} />}
+
+          {screen === 'auditoria' && <AuditoriaScreen auditoria={auditoria} />}
         </div>
       </div>
 
@@ -930,8 +1549,8 @@ function ErroBox({ erro }) {
   );
 }
 
-function Card({ children, style }) {
-  return <div style={{ background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 12, padding: 18, boxShadow: '0 1px 2px rgba(20,22,26,0.03)', ...style }}>{children}</div>;
+function Card({ children, style, className }) {
+  return <div className={className} style={{ background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 16, padding: 18, boxShadow: '0 1px 3px rgba(30,20,60,0.04)', ...style }}>{children}</div>;
 }
 
 const CHART_COLORS = { Dinheiro: '#2DD4BF', 'Cartão Débito': '#60A5FA', 'Cartão Crédito': '#F59E0B', Pix: '#A78BFA' };
@@ -951,26 +1570,29 @@ function ChartTooltip({ active, payload, label, formatter }) {
   );
 }
 
-function KpiCard({ icon: Icon, iconColor, label, value, sub, accentBar }) {
+function KpiCard({ icon: Icon, iconColor, label, value, numericValue, formatter, sub, accentBar }) {
   const [hover, setHover] = useState(false);
   return (
     <div
+      className="pop-in"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
         background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 12, padding: 16,
-        boxShadow: hover ? '0 8px 20px rgba(20,22,26,0.08)' : '0 1px 2px rgba(20,22,26,0.03)',
-        transform: hover ? 'translateY(-2px)' : 'translateY(0)', transition: 'all 0.18s ease', position: 'relative', overflow: 'hidden',
+        boxShadow: hover ? '0 10px 24px rgba(20,22,26,0.09)' : '0 1px 2px rgba(20,22,26,0.03)',
+        transform: hover ? 'translateY(-3px)' : 'translateY(0)', transition: 'transform 0.22s cubic-bezier(.22,1,.36,1), box-shadow 0.22s ease', position: 'relative', overflow: 'hidden',
       }}
     >
       {accentBar && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: accentBar }} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <div style={{ width: 26, height: 26, borderRadius: 7, background: `${iconColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: 26, height: 26, borderRadius: 7, background: `${iconColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease' }}>
           <Icon size={13.5} color={iconColor} strokeWidth={2.3} />
         </div>
         <span style={{ fontSize: 11, color: C.muted, textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4 }}>{label}</span>
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 21, color: C.textDark }}>{value}</div>
+      <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 21, color: C.textDark }}>
+        {numericValue !== undefined ? <AnimatedNumber value={numericValue} formatter={formatter || ((v) => v)} /> : value}
+      </div>
       {sub && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{sub}</div>}
     </div>
   );
@@ -979,7 +1601,7 @@ function KpiCard({ icon: Icon, iconColor, label, value, sub, accentBar }) {
 function Dashboard({ caixa, valorEsperadoCaixa, vendasDoTurno, produtos, ultimoFechamento, vendas, onAbrirCaixa, onIrPDV }) {
   const totalVendido = vendasDoTurno.reduce((s, v) => s + v.total, 0);
   const ticketMedio = vendasDoTurno.length ? totalVendido / vendasDoTurno.length : 0;
-  const baixoEstoque = produtos.filter((p) => p.estoque <= 20);
+  const baixoEstoque = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10));
 
   const dados7dias = useMemo(() => {
     const dias = [];
@@ -1019,25 +1641,25 @@ function Dashboard({ caixa, valorEsperadoCaixa, vendasDoTurno, produtos, ultimoF
     <div style={{ maxWidth: 980 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 22, flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Dashboard</h1>
+          <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Dashboard</h1>
           <p style={{ color: C.muted, fontSize: 13.5, margin: 0 }}>Visão geral do turno atual e desempenho recente.</p>
         </div>
         {!caixa.aberto ? (
-          <button onClick={onAbrirCaixa} style={btnPrimary}><Wallet size={15} /> Abrir Caixa</button>
+          <button onClick={onAbrirCaixa} onMouseDown={rippleEffect} className="ripple" style={btnPrimary}><Wallet size={15} /> Abrir Caixa</button>
         ) : (
-          <button onClick={onIrPDV} style={btnPrimary}><ShoppingCart size={15} /> Ir para o PDV</button>
+          <button onClick={onIrPDV} onMouseDown={rippleEffect} className="ripple" style={btnPrimary}><ShoppingCart size={15} /> Ir para o PDV</button>
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 18 }}>
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 18 }}>
         <KpiCard icon={Wallet} iconColor={caixa.aberto ? C.accentDark : C.danger} accentBar={caixa.aberto ? C.accent : C.danger}
           label="Status do Caixa" value={caixa.aberto ? 'Aberto' : 'Fechado'} sub={caixa.aberto ? `desde ${hora(caixa.dataAbertura)}` : 'nenhum turno ativo'} />
         <KpiCard icon={Receipt} iconColor={C.accentDark} accentBar={C.accent}
-          label="Vendas do Turno" value={fmt(totalVendido)} sub={`${vendasDoTurno.length} venda(s)`} />
+          label="Vendas do Turno" numericValue={totalVendido} formatter={fmt} sub={`${vendasDoTurno.length} venda(s)`} />
         <KpiCard icon={TrendingUp} iconColor="#60A5FA" accentBar="#60A5FA"
-          label="Ticket Médio" value={fmt(ticketMedio)} sub="por venda no turno" />
+          label="Ticket Médio" numericValue={ticketMedio} formatter={fmt} sub="por venda no turno" />
         <KpiCard icon={Banknote} iconColor="#F59E0B" accentBar="#F59E0B"
-          label="Saldo em Caixa" value={caixa.aberto ? fmt(valorEsperadoCaixa) : '—'} sub={caixa.aberto ? 'dinheiro em espécie' : 'caixa fechado'} />
+          label="Saldo em Caixa" value={caixa.aberto ? undefined : '—'} numericValue={caixa.aberto ? valorEsperadoCaixa : undefined} formatter={fmt} sub={caixa.aberto ? 'dinheiro em espécie' : 'caixa fechado'} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 14, marginBottom: 14 }}>
@@ -1162,7 +1784,7 @@ function Dashboard({ caixa, valorEsperadoCaixa, vendasDoTurno, produtos, ultimoF
 function AbrirCaixa({ valor, setValor, onConfirmar }) {
   return (
     <div style={{ maxWidth: 420 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Abrir Caixa</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Abrir Caixa</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Informe o valor inicial (fundo de troco) em dinheiro.</p>
       <form onSubmit={onConfirmar}>
         <Card>
@@ -1174,7 +1796,7 @@ function AbrirCaixa({ valor, setValor, onConfirmar }) {
               style={{ border: 'none', background: 'transparent', outline: 'none', fontFamily: "'JetBrains Mono',monospace", fontSize: 18, fontWeight: 600, flex: 1 }}
             />
           </div>
-          <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}>
+          <button type="submit" onMouseDown={rippleEffect} className="ripple" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}>
             <Check size={15} /> Confirmar Abertura
           </button>
         </Card>
@@ -1221,7 +1843,7 @@ function PDVScreen({ produtos, busca, setBusca, onBuscaSubmit, categorias, categ
           })}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+        <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
           {produtos.map((p) => {
             const qtd = qtdNoCarrinho(p.id);
             return (
@@ -1290,9 +1912,9 @@ function PDVScreen({ produtos, busca, setBusca, onBuscaSubmit, categorias, categ
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}>Total</span>
 
-            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 22 }}>{fmt(total)}</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 22 }}><AnimatedNumber value={total} formatter={fmt} /></span>
           </div>
-          <button onClick={onFinalizar} disabled={carrinho.length === 0} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', opacity: carrinho.length === 0 ? 0.5 : 1, cursor: carrinho.length === 0 ? 'not-allowed' : 'pointer' }}>
+          <button onClick={onFinalizar} onMouseDown={rippleEffect} disabled={carrinho.length === 0} className="ripple" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', opacity: carrinho.length === 0 ? 0.5 : 1, cursor: carrinho.length === 0 ? 'not-allowed' : 'pointer' }}>
             Finalizar Venda
           </button>
         </div>
@@ -1301,12 +1923,13 @@ function PDVScreen({ produtos, busca, setBusca, onBuscaSubmit, categorias, categ
   );
 }
 
-function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, onConfirmar, onVoltar }) {
+function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, onConfirmar, onVoltar, config, clientes }) {
   const formas = [
     { key: 'Dinheiro', icon: Banknote },
     { key: 'Cartão Débito', icon: CreditCard },
     { key: 'Cartão Crédito', icon: CreditCard },
     { key: 'Pix', icon: QrCode },
+    { key: 'Credário', icon: Users },
   ];
   const recebido = parseFloat(String(pagamento.valorRecebido).replace(',', '.'));
   const troco = !isNaN(recebido) ? recebido - total : null;
@@ -1314,7 +1937,7 @@ function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, o
   return (
     <div style={{ maxWidth: 480 }}>
       <button onClick={onVoltar} style={btnGhost}><ArrowLeft size={13} /> Voltar ao PDV</button>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '14px 0 18px' }}>Receber Pagamento</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '14px 0 18px' }}>Receber Pagamento</h1>
 
       <Card style={{ marginBottom: 14 }}>
         <Row label="Subtotal" value={fmt(subtotal)} muted />
@@ -1327,30 +1950,30 @@ function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, o
         </div>
       </Card>
 
-      <div style={{ background: C.bgDark, borderRadius: 12, padding: 20, marginBottom: 18, textAlign: 'center' }}>
+      <div className="pop-in" style={{ background: C.bgDark, borderRadius: 12, padding: 20, marginBottom: 18, textAlign: 'center' }}>
         <div style={{ fontSize: 11.5, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Total a pagar</div>
-        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 36, color: C.accent, textShadow: `0 0 18px ${C.accentGlow}`, marginTop: 4 }}>{fmt(total)}</div>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 36, color: C.accent, textShadow: `0 0 18px ${C.accentGlow}`, marginTop: 4 }}><AnimatedNumber value={total} formatter={fmt} /></div>
         {desconto > 0 && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4 }}>desconto de {fmt(desconto)} aplicado</div>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10, marginBottom: 16 }}>
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 16 }}>
         {formas.map((f) => {
           const Icon = f.icon;
           const active = pagamento.forma === f.key;
           return (
-            <button key={f.key} onClick={() => setPagamento({ forma: f.key, valorRecebido: '' })} style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderRadius: 9,
+            <button key={f.key} onClick={() => setPagamento((prev) => ({ ...prev, forma: f.key, valorRecebido: '', clienteId: '' }))} onMouseDown={rippleEffect} className="ripple" style={{
+              display: 'flex', alignItems: 'center', gap: 7, padding: '11px 10px', borderRadius: 9,
               border: `1.5px solid ${active ? C.accentDark : C.borderLight}`, background: active ? 'rgba(45,212,191,0.08)' : C.panel, cursor: 'pointer',
             }}>
-              <Icon size={16} color={active ? C.accentDark : C.muted} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: active ? C.accentDark : C.textDark }}>{f.key}</span>
+              <Icon size={15} color={active ? C.accentDark : C.muted} />
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: active ? C.accentDark : C.textDark }}>{f.key}</span>
             </button>
           );
         })}
       </div>
 
       {pagamento.forma === 'Dinheiro' && (
-        <Card style={{ marginBottom: 16 }}>
+        <Card className="pop-in" style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 12, color: C.muted, display: 'block', marginBottom: 8 }}>Valor recebido do cliente</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.bgLight, border: `1px solid ${C.borderLight}`, borderRadius: 9, padding: '10px 14px' }}>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>R$</span>
@@ -1366,21 +1989,101 @@ function PagamentoScreen({ subtotal, desconto, total, pagamento, setPagamento, o
         </Card>
       )}
 
-      <button onClick={onConfirmar} style={{ ...btnPrimary, width: '100%', justifyContent: 'center' }}>
+      {pagamento.forma === 'Pix' && <PixCobranca config={config} valor={total} />}
+
+      {pagamento.forma === 'Credário' && (
+        <Card className="pop-in" style={{ marginBottom: 16 }}>
+          <label style={labelSm}>Cliente</label>
+          {clientes.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4 }}>Nenhum cliente cadastrado. Cadastre em <strong>Clientes</strong> antes de vender no credário.</div>
+          ) : (
+            <select value={pagamento.clienteId} onChange={(e) => setPagamento({ ...pagamento, clienteId: e.target.value })} style={inputLightStyle}>
+              <option value="">Selecione o cliente...</option>
+              {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome} {c.limiteCredito ? `(limite ${fmt(c.limiteCredito)})` : ''}</option>)}
+            </select>
+          )}
+          <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>O valor entra como conta a receber, com vencimento em 30 dias.</div>
+        </Card>
+      )}
+
+      <button onClick={onConfirmar} onMouseDown={rippleEffect} className="ripple" style={{ ...btnPrimary, width: '100%', justifyContent: 'center' }}>
         <Check size={15} /> Confirmar Pagamento
       </button>
     </div>
   );
 }
 
+function PixCobranca({ config, valor }) {
+  const [qrUrl, setQrUrl] = useState('');
+  const [copiado, setCopiado] = useState(false);
+
+  const payload = useMemo(() => {
+    if (!config.chavePix) return null;
+    return gerarPayloadPix({
+      chave: config.chavePix,
+      nome: config.nomeRecebedorPix,
+      cidade: config.cidadeRecebedorPix,
+      valor,
+      txid: `PDV${Date.now()}`,
+    });
+  }, [config.chavePix, config.nomeRecebedorPix, config.cidadeRecebedorPix, valor]);
+
+  useEffect(() => {
+    if (!payload) { setQrUrl(''); return; }
+    let ativo = true;
+    QRCode.toDataURL(payload, { width: 220, margin: 1, color: { dark: C.bgDark, light: '#FFFFFF' } })
+      .then((url) => { if (ativo) setQrUrl(url); })
+      .catch(() => { if (ativo) setQrUrl(''); });
+    return () => { ativo = false; };
+  }, [payload]);
+
+  function copiar() {
+    if (!payload) return;
+    navigator.clipboard?.writeText(payload).then(() => {
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1800);
+    });
+  }
+
+  if (!config.chavePix) {
+    return (
+      <Card style={{ marginBottom: 16, textAlign: 'center' }}>
+        <AlertTriangle size={18} color={C.warn} style={{ marginBottom: 6 }} />
+        <div style={{ fontSize: 12.5, color: C.muted }}>
+          Nenhuma chave Pix configurada. Cadastre em <strong>Configurações</strong> para gerar o QR Code automaticamente.
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card style={{ marginBottom: 16, textAlign: 'center' }}>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 10 }}>
+        O cliente escaneia o QR abaixo — o valor de <strong style={{ color: C.textDark }}>{fmt(valor)}</strong> já vem preenchido e cai direto na chave <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{normalizarChavePix(config.chavePix)}</span>.
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+        {qrUrl ? (
+          <img src={qrUrl} alt="QR Code Pix" width={200} height={200} style={{ borderRadius: 10, border: `1px solid ${C.borderLight}` }} />
+        ) : (
+          <div style={{ width: 200, height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: 12 }}>Gerando QR Code…</div>
+        )}
+      </div>
+      <button type="button" onClick={copiar} style={{ ...btnGhostSolid, width: '100%', justifyContent: 'center' }}>
+        {copiado ? <CheckCircle2 size={14} color={C.accentDark} /> : <QrCode size={14} />}
+        {copiado ? 'Código copiado!' : 'Copiar Pix Copia e Cola'}
+      </button>
+    </Card>
+  );
+}
+
 function CupomScreen({ venda, onNovaVenda, onImprimir }) {
   return (
     <div style={{ maxWidth: 420 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 18px' }}>Cupom Emitido</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 18px' }}>Cupom Emitido</h1>
 
       <div style={{ background: C.panel, border: `1px solid ${C.borderLight}`, borderRadius: 12, padding: 20, fontFamily: "'JetBrains Mono',monospace", marginBottom: 16 }}>
         <div style={{ textAlign: 'center', marginBottom: 10 }}>
-          <div style={{ fontWeight: 700, fontSize: 13.5, fontFamily: "'Space Grotesk',sans-serif" }}>PDV TERMINAL</div>
+          <div style={{ fontWeight: 700, fontSize: 13.5, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>PDV TERMINAL</div>
           <div style={{ fontSize: 10.5, color: C.muted }}>Cupom Não Fiscal — Venda #{String(venda.numero).padStart(4, '0')}</div>
           <div style={{ fontSize: 10.5, color: C.muted }}>{dataHora(venda.hora)} · {venda.operador}</div>
         </div>
@@ -1446,7 +2149,7 @@ function FecharCaixaScreen({ caixa, totaisPorForma, valorEsperado, qtdVendas, va
   const diferenca = !isNaN(contado) ? contado - valorEsperado : null;
   return (
     <div style={{ maxWidth: 460 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Fechar Caixa</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Fechar Caixa</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Conferência do turno iniciado às {hora(caixa.dataAbertura)}.</p>
 
       <Card style={{ marginBottom: 16 }}>
@@ -1494,11 +2197,524 @@ function Row({ label, value, bold, muted }) {
   );
 }
 
-function FinanceiroScreen({ financeiro }) {
+const MOV_COLORS = { Venda: C.danger, Compra: C.accentDark, Ajuste: '#F59E0B', Estorno: '#60A5FA', Inventário: '#A78BFA' };
+
+function MovimentacoesScreen({ movimentos }) {
+  const [filtro, setFiltro] = useState('Todos');
+  const tipos = ['Todos', 'Venda', 'Compra', 'Ajuste', 'Estorno', 'Inventário'];
+  const lista = useMemo(() => {
+    const l = filtro === 'Todos' ? movimentos : movimentos.filter((m) => m.tipo === filtro);
+    return [...l].reverse();
+  }, [movimentos, filtro]);
+
   return (
-    <div style={{ maxWidth: 640 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Financeiro</h1>
-      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Lançamentos registrados automaticamente pelo PDV.</p>
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Movimentações de Estoque</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 16px' }}>Histórico completo de entradas e saídas.</p>
+
+      <div style={{ display: 'flex', gap: 7, marginBottom: 16, flexWrap: 'wrap' }}>
+        {tipos.map((t) => (
+          <button key={t} onClick={() => setFiltro(t)} style={{
+            padding: '6px 13px', borderRadius: 99, border: `1.5px solid ${filtro === t ? C.accentDark : C.borderLight}`,
+            background: filtro === t ? 'rgba(45,212,191,0.08)' : C.panel, color: filtro === t ? C.accentDark : C.textDark,
+            fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+          }}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 90 }}>Tipo</span>
+          <span style={{ flex: 1.4 }}>Produto</span>
+          <span style={{ flex: 1 }}>Motivo</span>
+          <span style={{ width: 80, textAlign: 'right' }}>Qtd.</span>
+          <span style={{ width: 110, textAlign: 'right' }}>Data/Hora</span>
+        </div>
+        {lista.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma movimentação registrada.</div>}
+        {lista.map((m) => (
+          <div key={m.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
+            <span style={{ width: 90 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 99, background: `${MOV_COLORS[m.tipo] || C.muted}18`, color: MOV_COLORS[m.tipo] || C.muted }}>{m.tipo}</span>
+            </span>
+            <span style={{ flex: 1.4, fontWeight: 500 }}>{m.produtoNome}</span>
+            <span style={{ flex: 1, color: C.muted, fontSize: 12 }}>{m.motivo}</span>
+            <span style={{ width: 80, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: m.quantidade > 0 ? C.accentDark : C.danger }}>
+              {m.quantidade > 0 ? '+' : ''}{m.quantidade}
+            </span>
+            <span style={{ width: 110, textAlign: 'right', color: C.muted, fontSize: 11.5, fontFamily: "'JetBrains Mono',monospace" }}>{dataHora(m.hora)}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function InventarioScreen({ produtos, onAplicar }) {
+  const [contagens, setContagens] = useState({});
+
+  function setContagem(id, valor) {
+    setContagens((prev) => ({ ...prev, [id]: valor }));
+  }
+
+  const diffs = useMemo(() => {
+    const d = {};
+    Object.entries(contagens).forEach(([id, valor]) => {
+      const produto = produtos.find((p) => p.id === Number(id));
+      if (!produto || valor === '') return;
+      const n = parseInt(valor, 10);
+      if (isNaN(n)) return;
+      d[id] = n - produto.estoque;
+    });
+    return d;
+  }, [contagens, produtos]);
+
+  const qtdDivergencias = Object.values(diffs).filter((d) => d !== 0).length;
+
+  function aplicar() {
+    const contagensNum = {};
+    Object.entries(contagens).forEach(([id, valor]) => {
+      const n = parseInt(valor, 10);
+      if (!isNaN(n)) contagensNum[id] = n;
+    });
+    onAplicar(contagensNum);
+    setContagens({});
+  }
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Inventário</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 16px' }}>Faça a contagem física e aplique os ajustes de uma vez.</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Produto</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Sistema</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Contagem</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Diferença</span>
+        </div>
+        {produtos.map((p) => {
+          const diff = diffs[p.id];
+          return (
+            <div key={p.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+              <span style={{ flex: 1.6, fontWeight: 500 }}>{p.nome}</span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{p.estoque}</span>
+              <span style={{ width: 100, textAlign: 'right' }}>
+                <input
+                  value={contagens[p.id] ?? ''} onChange={(e) => setContagem(p.id, e.target.value)} placeholder="—" inputMode="numeric"
+                  style={{ width: 70, boxSizing: 'border-box', textAlign: 'right', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 7px', fontSize: 12.5, fontFamily: "'JetBrains Mono',monospace" }}
+                />
+              </span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: diff === undefined || diff === 0 ? C.muted : diff > 0 ? C.accentDark : C.danger }}>
+                {diff === undefined ? '—' : `${diff > 0 ? '+' : ''}${diff}`}
+              </span>
+            </div>
+          );
+        })}
+      </Card>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <button onClick={aplicar} disabled={qtdDivergencias === 0} style={{ ...btnPrimary, opacity: qtdDivergencias === 0 ? 0.5 : 1, cursor: qtdDivergencias === 0 ? 'not-allowed' : 'pointer' }}>
+          <Check size={15} /> Aplicar Ajustes
+        </button>
+        <span style={{ fontSize: 12.5, color: C.muted }}>{qtdDivergencias} divergência(s) encontrada(s)</span>
+      </div>
+    </div>
+  );
+}
+
+function AjusteEstoqueScreen({ produtos, onAjustar }) {
+  const [produtoId, setProdutoId] = useState('');
+  const [tipo, setTipo] = useState('entrada');
+  const [quantidade, setQuantidade] = useState('');
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState('');
+
+  const produto = produtos.find((p) => p.id === Number(produtoId));
+
+  function submit(e) {
+    e.preventDefault();
+    const n = parseInt(quantidade, 10);
+    if (!produtoId) { setErro('Selecione um produto.'); return; }
+    if (isNaN(n) || n <= 0) { setErro('Informe uma quantidade válida.'); return; }
+    if (tipo === 'saida' && produto && n > produto.estoque) { setErro('Quantidade maior que o estoque disponível.'); return; }
+    onAjustar({ produtoId: Number(produtoId), quantidade: tipo === 'entrada' ? n : -n, motivo: motivo.trim() || (tipo === 'entrada' ? 'Ajuste de entrada' : 'Ajuste de saída') });
+    setProdutoId(''); setQuantidade(''); setMotivo(''); setErro('');
+  }
+
+  return (
+    <div style={{ maxWidth: 460 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Ajuste de Estoque</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Correções pontuais — perdas, quebras, doações, achados.</p>
+
+      <form onSubmit={submit}>
+        <Card>
+          <label style={labelSm}>Produto</label>
+          <select value={produtoId} onChange={(e) => setProdutoId(e.target.value)} style={{ ...inputLightStyle, marginBottom: 14 }}>
+            <option value="">Selecione um produto...</option>
+            {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome} (estoque: {p.estoque})</option>)}
+          </select>
+
+          <label style={labelSm}>Tipo de ajuste</label>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14, marginTop: 4 }}>
+            {[{ v: 'entrada', l: 'Entrada (+)' }, { v: 'saida', l: 'Saída (−)' }].map((o) => (
+              <button type="button" key={o.v} onClick={() => setTipo(o.v)} style={{
+                flex: 1, padding: '9px 0', borderRadius: 8, border: `1.5px solid ${tipo === o.v ? C.accentDark : C.borderLight}`,
+                background: tipo === o.v ? 'rgba(45,212,191,0.08)' : C.panel, color: tipo === o.v ? C.accentDark : C.textDark, fontWeight: 600, fontSize: 13, cursor: 'pointer',
+              }}>
+                {o.l}
+              </button>
+            ))}
+          </div>
+
+          <label style={labelSm}>Quantidade</label>
+          <input value={quantidade} onChange={(e) => setQuantidade(e.target.value)} inputMode="numeric" placeholder="0" style={{ ...inputLightStyle, marginBottom: 14 }} />
+
+          <label style={labelSm}>Motivo</label>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex: produto vencido, quebra no transporte..." style={inputLightStyle} />
+
+          {erro && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erro}</div>}
+
+          <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 18 }}>
+            <SlidersHorizontal size={15} /> Aplicar Ajuste
+          </button>
+        </Card>
+      </form>
+    </div>
+  );
+}
+
+function AlertasEstoqueScreen({ produtos, onIrCompras }) {
+  const alertas = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10)).sort((a, b) => a.estoque - b.estoque);
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Alertas de Estoque</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Produtos no ou abaixo do estoque mínimo cadastrado.</p>
+
+      {alertas.length === 0 ? (
+        <Card style={{ textAlign: 'center', padding: 32, color: C.muted, fontSize: 13 }}>
+          <CheckCircle2 size={20} color={C.accentDark} style={{ marginBottom: 8 }} /><br />Nenhum produto abaixo do mínimo.
+        </Card>
+      ) : (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+            <span style={{ flex: 1.6 }}>Produto</span>
+            <span style={{ width: 90, textAlign: 'right' }}>Estoque</span>
+            <span style={{ width: 90, textAlign: 'right' }}>Mínimo</span>
+          </div>
+          {alertas.map((p) => (
+            <div key={p.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+              <span style={{ flex: 1.6, display: 'flex', alignItems: 'center', gap: 7 }}>
+                <span style={{ width: 7, height: 7, borderRadius: 99, background: p.estoque === 0 ? C.danger : C.warn }} />
+                {p.nome}
+              </span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: p.estoque === 0 ? C.danger : C.warn }}>{p.estoque}</span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{p.estoqueMinimo ?? 10}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <button onClick={onIrCompras} style={{ ...btnPrimary, marginTop: 16 }}>
+        <Truck size={15} /> Registrar nova compra
+      </button>
+    </div>
+  );
+}
+
+function NovaCompraScreen({ produtos, fornecedores, onConfirmar }) {
+  const [fornecedorId, setFornecedorId] = useState('');
+  const [itens, setItens] = useState([]);
+  const [produtoSel, setProdutoSel] = useState('');
+  const [qtdSel, setQtdSel] = useState('');
+  const [custoSel, setCustoSel] = useState('');
+  const [frete, setFrete] = useState('');
+  const [desconto, setDesconto] = useState('');
+  const [erro, setErro] = useState('');
+
+  function adicionarItem() {
+    const produto = produtos.find((p) => p.id === Number(produtoSel));
+    const qtd = parseInt(qtdSel, 10);
+    const custo = parseFloat(String(custoSel).replace(',', '.'));
+    if (!produto) { setErro('Selecione um produto.'); return; }
+    if (isNaN(qtd) || qtd <= 0) { setErro('Informe uma quantidade válida.'); return; }
+    if (isNaN(custo) || custo < 0) { setErro('Informe um custo unitário válido.'); return; }
+    setItens((prev) => {
+      const existe = prev.find((i) => i.produtoId === produto.id);
+      if (existe) return prev.map((i) => (i.produtoId === produto.id ? { ...i, qtd: i.qtd + qtd, custo } : i));
+      return [...prev, { produtoId: produto.id, nome: produto.nome, qtd, custo }];
+    });
+    setProdutoSel(''); setQtdSel(''); setCustoSel(''); setErro('');
+  }
+
+  function removerItem(id) {
+    setItens((prev) => prev.filter((i) => i.produtoId !== id));
+  }
+
+  const subtotal = itens.reduce((s, i) => s + i.qtd * i.custo, 0);
+  const freteNum = parseFloat(String(frete).replace(',', '.')) || 0;
+  const descontoNum = parseFloat(String(desconto).replace(',', '.')) || 0;
+  const total = Math.max(subtotal + freteNum - descontoNum, 0);
+
+  function finalizarCompra() {
+    if (!fornecedorId) { setErro('Selecione um fornecedor.'); return; }
+    if (itens.length === 0) { setErro('Adicione ao menos um item à compra.'); return; }
+    onConfirmar({ fornecedorId: Number(fornecedorId), itens, frete: freteNum, desconto: descontoNum });
+    setFornecedorId(''); setItens([]); setFrete(''); setDesconto(''); setErro('');
+  }
+
+  const cellInput = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '6px 8px', fontSize: 12.5 };
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Nova Compra</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Ao confirmar, o estoque aumenta e o custo do produto é atualizado.</p>
+
+      <Card style={{ marginBottom: 16 }}>
+        <label style={labelSm}>Fornecedor</label>
+        <select value={fornecedorId} onChange={(e) => setFornecedorId(e.target.value)} style={inputLightStyle}>
+          <option value="">Selecione um fornecedor...</option>
+          {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+        </select>
+      </Card>
+
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Adicionar item</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 0.8fr 1fr auto', gap: 8, alignItems: 'end' }}>
+          <div>
+            <label style={labelSm}>Produto</label>
+            <select value={produtoSel} onChange={(e) => { setProdutoSel(e.target.value); const p = produtos.find(pp => pp.id === Number(e.target.value)); if (p) setCustoSel(String(p.custo || '')); }} style={cellInput}>
+              <option value="">Selecione...</option>
+              {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={labelSm}>Qtd.</label>
+            <input value={qtdSel} onChange={(e) => setQtdSel(e.target.value)} inputMode="numeric" placeholder="0" style={cellInput} />
+          </div>
+          <div>
+            <label style={labelSm}>Custo unit. (R$)</label>
+            <input value={custoSel} onChange={(e) => setCustoSel(e.target.value)} inputMode="decimal" placeholder="0,00" style={cellInput} />
+          </div>
+          <button type="button" onClick={adicionarItem} style={{ ...btnGhostSolid, height: 33, padding: '0 14px' }}><Plus size={14} /> Adicionar</button>
+        </div>
+        {erro && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erro}</div>}
+      </Card>
+
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Produto</span>
+          <span style={{ width: 70, textAlign: 'right' }}>Qtd.</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Custo</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Subtotal</span>
+          <span style={{ width: 40 }} />
+        </div>
+        {itens.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhum item adicionado ainda.</div>}
+        {itens.map((i) => (
+          <div key={i.produtoId} style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+            <span style={{ flex: 1.6 }}>{i.nome}</span>
+            <span style={{ width: 70, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{i.qtd}</span>
+            <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{fmt(i.custo)}</span>
+            <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{fmt(i.qtd * i.custo)}</span>
+            <span style={{ width: 40, textAlign: 'right' }}>
+              <button onClick={() => removerItem(i.produtoId)} style={iconBtn}><X size={13} color={C.danger} /></button>
+            </span>
+          </div>
+        ))}
+      </Card>
+
+      <Card>
+        <Row label="Subtotal" value={fmt(subtotal)} muted />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 13, color: C.muted, flex: 1 }}>Frete (R$)</span>
+          <input value={frete} onChange={(e) => setFrete(e.target.value)} placeholder="0,00" inputMode="decimal" style={{ width: 100, boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 8px', fontFamily: "'JetBrains Mono',monospace", fontSize: 13, textAlign: 'right' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+          <span style={{ fontSize: 13, color: C.muted, flex: 1 }}>Desconto (R$)</span>
+          <input value={desconto} onChange={(e) => setDesconto(e.target.value)} placeholder="0,00" inputMode="decimal" style={{ width: 100, boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 8px', fontFamily: "'JetBrains Mono',monospace", fontSize: 13, textAlign: 'right' }} />
+        </div>
+        <div style={{ borderTop: `1px solid ${C.borderLight}`, margin: '10px 0' }} />
+        <Row label="TOTAL" value={fmt(total)} bold />
+        <button onClick={finalizarCompra} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}>
+          <Check size={15} /> Confirmar Compra
+        </button>
+      </Card>
+    </div>
+  );
+}
+
+function HistoricoComprasScreen({ compras }) {
+  const [expandido, setExpandido] = useState(null);
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Histórico de Compras</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Todas as compras registradas de fornecedores.</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 60 }}>Nº</span>
+          <span style={{ flex: 1 }}>Fornecedor / Data</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Total</span>
+        </div>
+        {compras.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma compra registrada ainda.</div>}
+        {[...compras].reverse().map((c) => {
+          const aberto = expandido === c.numero;
+          return (
+            <div key={c.numero} className="table-row" style={{ borderTop: `1px solid ${C.borderLight}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', fontSize: 13 }}>
+                <button onClick={() => setExpandido(aberto ? null : c.numero)} style={{ width: 60, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: 0 }}>
+                  #{String(c.numero).padStart(4, '0')}
+                </button>
+                <span style={{ flex: 1, color: C.muted, fontSize: 12.5 }}>{c.fornecedorNome} · {dataHora(c.hora)}</span>
+                <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(c.total)}</span>
+              </div>
+              {aberto && (
+                <div style={{ padding: '0 16px 12px 76px' }}>
+                  {c.itens.map((i) => (
+                    <div key={i.produtoId} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted, padding: '2px 0' }}>
+                      <span>{i.qtd}x {i.nome} · custo {fmt(i.custo)}</span>
+                      <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{fmt(i.qtd * i.custo)}</span>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}>
+                    Frete: {fmt(c.frete)} · Desconto: {fmt(c.desconto)}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </Card>
+    </div>
+  );
+}
+
+function FornecedoresScreen({ fornecedores, onAdd, onEdit, onDelete }) {
+  const [novo, setNovo] = useState({ nome: '', contato: '', telefone: '', cnpj: '' });
+  const [erroForm, setErroForm] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const cellInput = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 7px', fontSize: 12.5 };
+
+  function submitNovo(e) {
+    e.preventDefault();
+    if (!novo.nome.trim()) { setErroForm('Informe ao menos o nome do fornecedor.'); return; }
+    onAdd({ nome: novo.nome.trim(), contato: novo.contato.trim(), telefone: novo.telefone.trim(), cnpj: novo.cnpj.trim() });
+    setNovo({ nome: '', contato: '', telefone: '', cnpj: '' });
+    setErroForm('');
+  }
+
+  function iniciarEdicao(f) {
+    setEditId(f.id);
+    setEditValues({ nome: f.nome, contato: f.contato, telefone: f.telefone, cnpj: f.cnpj });
+  }
+
+  function salvarEdicao(id) {
+    if (!editValues.nome.trim()) return;
+    onEdit(id, editValues);
+    setEditId(null);
+  }
+
+  return (
+    <div style={{ maxWidth: 820 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Fornecedores</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Cadastro usado nas compras de mercadoria.</p>
+
+      <form onSubmit={submitNovo}>
+        <Card style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Novo fornecedor</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+            <div>
+              <label style={labelSm}>Nome</label>
+              <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Distribuidora X" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Contato</label>
+              <input value={novo.contato} onChange={(e) => setNovo({ ...novo, contato: e.target.value })} placeholder="Nome do vendedor" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>Telefone</label>
+              <input value={novo.telefone} onChange={(e) => setNovo({ ...novo, telefone: e.target.value })} placeholder="(11) 99999-9999" style={cellInput} />
+            </div>
+            <div>
+              <label style={labelSm}>CNPJ</label>
+              <input value={novo.cnpj} onChange={(e) => setNovo({ ...novo, cnpj: e.target.value })} placeholder="00.000.000/0000-00" style={cellInput} />
+            </div>
+            <button type="submit" style={{ ...btnPrimary, height: 33, padding: '0 14px' }}><Plus size={14} /> Adicionar</button>
+          </div>
+          {erroForm && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erroForm}</div>}
+        </Card>
+      </form>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Nome</span>
+          <span style={{ flex: 1.2 }}>Contato</span>
+          <span style={{ flex: 1 }}>Telefone</span>
+          <span style={{ flex: 1 }}>CNPJ</span>
+          <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
+        </div>
+        {fornecedores.map((f) => {
+          const editando = editId === f.id;
+          return (
+            <div key={f.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+              {editando ? (
+                <>
+                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 1.6 }} />
+                  <input value={editValues.contato} onChange={(e) => setEditValues({ ...editValues, contato: e.target.value })} style={{ ...cellInput, flex: 1.2 }} />
+                  <input value={editValues.telefone} onChange={(e) => setEditValues({ ...editValues, telefone: e.target.value })} style={{ ...cellInput, flex: 1 }} />
+                  <input value={editValues.cnpj} onChange={(e) => setEditValues({ ...editValues, cnpj: e.target.value })} style={{ ...cellInput, flex: 1 }} />
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => salvarEdicao(f.id)} style={iconBtn}><Check size={13} color={C.accentDark} /></button>
+                    <button onClick={() => setEditId(null)} style={iconBtn}><X size={13} color={C.muted} /></button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span style={{ flex: 1.6, fontWeight: 500 }}>{f.nome}</span>
+                  <span style={{ flex: 1.2, color: C.muted }}>{f.contato || '—'}</span>
+                  <span style={{ flex: 1, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{f.telefone || '—'}</span>
+                  <span style={{ flex: 1, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{f.cnpj || '—'}</span>
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => iniciarEdicao(f)} style={iconBtn}><Pencil size={13} color={C.muted} /></button>
+                    <button onClick={() => onDelete(f.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {fornecedores.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum fornecedor cadastrado.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function FluxoCaixaScreen({ financeiro }) {
+  const entradas = financeiro.filter((f) => f.valor > 0).reduce((s, f) => s + f.valor, 0);
+  const saidas = financeiro.filter((f) => f.valor < 0).reduce((s, f) => s + f.valor, 0);
+  const saldo = entradas + saidas;
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Fluxo de Caixa</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Todos os lançamentos registrados automaticamente pelo sistema.</p>
+
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 18 }}>
+        <Card>
+          <span style={labelSm}>Entradas</span>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.accentDark }}>{fmt(entradas)}</div>
+        </Card>
+        <Card>
+          <span style={labelSm}>Saídas</span>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.danger }}>{fmt(Math.abs(saidas))}</div>
+        </Card>
+        <Card>
+          <span style={labelSm}>Saldo</span>
+          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: saldo >= 0 ? C.accentDark : C.danger }}>{fmt(saldo)}</div>
+        </Card>
+      </div>
+
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11.5, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
           <span style={{ flex: 1 }}>Lançamento</span>
@@ -1509,7 +2725,7 @@ function FinanceiroScreen({ financeiro }) {
         {[...financeiro].reverse().map((f) => (
           <div key={f.id} className="table-row" style={{ display: 'flex', padding: '10px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
             <span style={{ flex: 1 }}>{f.tipo}</span>
-            <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{fmt(f.valor)}</span>
+            <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: f.valor < 0 ? C.danger : C.textDark }}>{fmt(f.valor)}</span>
             <span style={{ width: 70, textAlign: 'right', color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{hora(f.hora)}</span>
           </div>
         ))}
@@ -1524,8 +2740,8 @@ function gerarCodigoBarras() {
   return n;
 }
 
-function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
-  const [novo, setNovo] = useState({ nome: '', categoria: '', preco: '', estoque: '', codigoBarras: '' });
+function ProdutosScreen({ produtos, categorias, onAdd, onEdit, onDelete }) {
+  const [novo, setNovo] = useState({ nome: '', categoria: '', preco: '', custo: '', estoque: '', estoqueMinimo: '', codigoBarras: '' });
   const [erroForm, setErroForm] = useState('');
   const [editId, setEditId] = useState(null);
   const [editValues, setEditValues] = useState({});
@@ -1533,7 +2749,9 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
   function submitNovo(e) {
     e.preventDefault();
     const preco = parseFloat(String(novo.preco).replace(',', '.'));
+    const custo = novo.custo ? parseFloat(String(novo.custo).replace(',', '.')) : 0;
     const estoque = parseInt(novo.estoque, 10);
+    const estoqueMinimo = novo.estoqueMinimo ? parseInt(novo.estoqueMinimo, 10) : 10;
     if (!novo.nome.trim() || !novo.categoria.trim() || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0) {
       setErroForm('Preencha nome, categoria, preço e estoque corretamente.');
       return;
@@ -1542,21 +2760,23 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
       setErroForm('Já existe um produto com esse código de barras.');
       return;
     }
-    onAdd({ nome: novo.nome.trim(), categoria: novo.categoria.trim(), preco, estoque, codigoBarras: novo.codigoBarras.trim() || gerarCodigoBarras() });
-    setNovo({ nome: '', categoria: '', preco: '', estoque: '', codigoBarras: '' });
+    onAdd({ nome: novo.nome.trim(), categoria: novo.categoria.trim(), preco, custo: isNaN(custo) ? 0 : custo, estoque, estoqueMinimo: isNaN(estoqueMinimo) ? 10 : estoqueMinimo, codigoBarras: novo.codigoBarras.trim() || gerarCodigoBarras() });
+    setNovo({ nome: '', categoria: '', preco: '', custo: '', estoque: '', estoqueMinimo: '', codigoBarras: '' });
     setErroForm('');
   }
 
   function iniciarEdicao(p) {
     setEditId(p.id);
-    setEditValues({ nome: p.nome, categoria: p.categoria, preco: String(p.preco), estoque: String(p.estoque), codigoBarras: p.codigoBarras || '' });
+    setEditValues({ nome: p.nome, categoria: p.categoria, preco: String(p.preco), custo: String(p.custo || 0), estoque: String(p.estoque), estoqueMinimo: String(p.estoqueMinimo ?? 10), codigoBarras: p.codigoBarras || '' });
   }
 
   function salvarEdicao(id) {
     const preco = parseFloat(String(editValues.preco).replace(',', '.'));
+    const custo = parseFloat(String(editValues.custo).replace(',', '.'));
     const estoque = parseInt(editValues.estoque, 10);
+    const estoqueMinimo = parseInt(editValues.estoqueMinimo, 10);
     if (!editValues.nome.trim() || !editValues.categoria.trim() || isNaN(preco) || preco < 0 || isNaN(estoque) || estoque < 0) return;
-    onEdit(id, { nome: editValues.nome.trim(), categoria: editValues.categoria.trim(), preco, estoque, codigoBarras: editValues.codigoBarras.trim() });
+    onEdit(id, { nome: editValues.nome.trim(), categoria: editValues.categoria.trim(), preco, custo: isNaN(custo) ? 0 : custo, estoque, estoqueMinimo: isNaN(estoqueMinimo) ? 10 : estoqueMinimo, codigoBarras: editValues.codigoBarras.trim() });
     setEditId(null);
   }
 
@@ -1564,40 +2784,61 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
   const cellInputMono = { ...cellInput, fontFamily: "'JetBrains Mono',monospace" };
 
   return (
-    <div style={{ maxWidth: 920 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Cadastro de Produtos</h1>
+    <div style={{ maxWidth: 980 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Cadastro de Produtos</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Adicione, edite ou remova itens do catálogo, incluindo código de barras.</p>
 
       <form onSubmit={submitNovo}>
         <Card style={{ marginBottom: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Novo produto</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.8fr 1fr 0.9fr 0.8fr 1.3fr auto', gap: 10, alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.1fr 0.8fr 0.8fr 0.8fr 0.8fr', gap: 10, marginBottom: 10 }}>
             <div>
               <label style={labelSm}>Nome</label>
               <input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Ex: Suco de Laranja 1L" style={cellInput} />
             </div>
             <div>
               <label style={labelSm}>Categoria</label>
-              <input value={novo.categoria} onChange={(e) => setNovo({ ...novo, categoria: e.target.value })} placeholder="Bebidas" style={cellInput} />
+              <input value={novo.categoria} onChange={(e) => setNovo({ ...novo, categoria: e.target.value })} placeholder="Bebidas" style={cellInput} list="lista-categorias" />
+              <datalist id="lista-categorias">
+                {categorias.map((c) => <option key={c.id} value={c.nome} />)}
+              </datalist>
             </div>
             <div>
               <label style={labelSm}>Preço (R$)</label>
               <input value={novo.preco} onChange={(e) => setNovo({ ...novo, preco: e.target.value })} placeholder="0,00" inputMode="decimal" style={cellInput} />
             </div>
             <div>
+              <label style={labelSm}>Custo (R$)</label>
+              <input value={novo.custo} onChange={(e) => setNovo({ ...novo, custo: e.target.value })} placeholder="0,00" inputMode="decimal" style={cellInput} />
+            </div>
+            <div>
               <label style={labelSm}>Estoque</label>
               <input value={novo.estoque} onChange={(e) => setNovo({ ...novo, estoque: e.target.value })} placeholder="0" inputMode="numeric" style={cellInput} />
             </div>
             <div>
+              <label style={labelSm}>Estoque mín.</label>
+              <input value={novo.estoqueMinimo} onChange={(e) => setNovo({ ...novo, estoqueMinimo: e.target.value })} placeholder="10" inputMode="numeric" style={cellInput} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'end' }}>
+            <div style={{ flex: 1 }}>
               <label style={labelSm}>Código de barras</label>
-              <div style={{ display: 'flex', gap: 4 }}>
-                <input value={novo.codigoBarras} onChange={(e) => setNovo({ ...novo, codigoBarras: e.target.value })} placeholder="Gerar automático" style={cellInputMono} />
-                <button type="button" onClick={() => setNovo({ ...novo, codigoBarras: gerarCodigoBarras() })} style={{ ...iconBtn, width: 28, height: 28, flexShrink: 0 }} title="Gerar código">
-                  <Barcode size={13} color={C.muted} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <Barcode size={14} color={C.muted} style={{ position: 'absolute', left: 9, top: 9 }} />
+                  <input
+                    value={novo.codigoBarras}
+                    onChange={(e) => setNovo({ ...novo, codigoBarras: e.target.value })}
+                    placeholder="Bipe ou digite — deixe em branco para gerar automático"
+                    style={{ ...cellInputMono, paddingLeft: 28, width: '100%' }}
+                  />
+                </div>
+                <button type="button" onClick={() => setNovo({ ...novo, codigoBarras: gerarCodigoBarras() })} style={{ ...btnGhostSolid, padding: '0 12px', height: 33 }} title="Gerar código automático">
+                  <Barcode size={13} /> Gerar
                 </button>
               </div>
             </div>
-            <button type="submit" style={{ ...btnPrimary, height: 33, padding: '0 14px' }}><Plus size={14} /> Adicionar</button>
+            <button type="submit" style={{ ...btnPrimary, height: 33, padding: '0 18px', flexShrink: 0 }}><Plus size={14} /> Adicionar</button>
           </div>
           {erroForm && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erroForm}</div>}
         </Card>
@@ -1605,11 +2846,12 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-          <span style={{ flex: 1.8 }}>Produto</span>
-          <span style={{ flex: 1 }}>Categoria</span>
-          <span style={{ width: 120 }}>Código de barras</span>
-          <span style={{ width: 90, textAlign: 'right' }}>Preço</span>
-          <span style={{ width: 70, textAlign: 'right' }}>Estoque</span>
+          <span style={{ flex: 1.6 }}>Produto</span>
+          <span style={{ flex: 0.9 }}>Categoria</span>
+          <span style={{ width: 110 }}>Cód. barras</span>
+          <span style={{ width: 80, textAlign: 'right' }}>Custo</span>
+          <span style={{ width: 80, textAlign: 'right' }}>Preço</span>
+          <span style={{ width: 60, textAlign: 'right' }}>Estoq.</span>
           <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
         </div>
         {produtos.map((p) => {
@@ -1618,11 +2860,12 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
             <div key={p.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
               {editando ? (
                 <>
-                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 1.8 }} />
-                  <input value={editValues.categoria} onChange={(e) => setEditValues({ ...editValues, categoria: e.target.value })} style={{ ...cellInput, flex: 1 }} />
-                  <input value={editValues.codigoBarras} onChange={(e) => setEditValues({ ...editValues, codigoBarras: e.target.value })} style={{ ...cellInputMono, width: 120 }} />
-                  <input value={editValues.preco} onChange={(e) => setEditValues({ ...editValues, preco: e.target.value })} style={{ ...cellInput, width: 90 }} />
-                  <input value={editValues.estoque} onChange={(e) => setEditValues({ ...editValues, estoque: e.target.value })} style={{ ...cellInput, width: 70 }} />
+                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 1.6 }} />
+                  <input value={editValues.categoria} onChange={(e) => setEditValues({ ...editValues, categoria: e.target.value })} style={{ ...cellInput, flex: 0.9 }} />
+                  <input value={editValues.codigoBarras} onChange={(e) => setEditValues({ ...editValues, codigoBarras: e.target.value })} style={{ ...cellInputMono, width: 110 }} />
+                  <input value={editValues.custo} onChange={(e) => setEditValues({ ...editValues, custo: e.target.value })} style={{ ...cellInput, width: 80 }} />
+                  <input value={editValues.preco} onChange={(e) => setEditValues({ ...editValues, preco: e.target.value })} style={{ ...cellInput, width: 80 }} />
+                  <input value={editValues.estoque} onChange={(e) => setEditValues({ ...editValues, estoque: e.target.value })} style={{ ...cellInput, width: 60 }} />
                   <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                     <button onClick={() => salvarEdicao(p.id)} style={iconBtn}><Check size={13} color={C.accentDark} /></button>
                     <button onClick={() => setEditId(null)} style={iconBtn}><X size={13} color={C.muted} /></button>
@@ -1630,13 +2873,14 @@ function ProdutosScreen({ produtos, onAdd, onEdit, onDelete }) {
                 </>
               ) : (
                 <>
-                  <span style={{ flex: 1.8, fontWeight: 500 }}>{p.nome}</span>
-                  <span style={{ flex: 1, color: C.muted }}>{p.categoria}</span>
-                  <span style={{ width: 120, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 11.5, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Barcode size={12} />{p.codigoBarras || '—'}
+                  <span style={{ flex: 1.6, fontWeight: 500 }}>{p.nome}</span>
+                  <span style={{ flex: 0.9, color: C.muted }}>{p.categoria}</span>
+                  <span style={{ width: 110, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Barcode size={11} />{p.codigoBarras || '—'}
                   </span>
-                  <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{fmt(p.preco)}</span>
-                  <span style={{ width: 70, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: p.estoque <= 5 ? C.danger : p.estoque <= 20 ? C.warn : C.textDark }}>{p.estoque}</span>
+                  <span style={{ width: 80, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{fmt(p.custo || 0)}</span>
+                  <span style={{ width: 80, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{fmt(p.preco)}</span>
+                  <span style={{ width: 60, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: p.estoque <= (p.estoqueMinimo ?? 10) ? C.danger : C.textDark }}>{p.estoque}</span>
                   <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
                     <button onClick={() => iniciarEdicao(p)} style={iconBtn}><Pencil size={13} color={C.muted} /></button>
                     <button onClick={() => onDelete(p.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
@@ -1656,7 +2900,7 @@ function VendasScreen({ vendas, onCancelar }) {
   const [expandido, setExpandido] = useState(null);
   return (
     <div style={{ maxWidth: 780 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Vendas</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Vendas</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Histórico completo, incluindo turnos anteriores.</p>
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
@@ -1715,7 +2959,7 @@ function VendasScreen({ vendas, onCancelar }) {
 function SangriaScreen({ caixa, valorDisponivel, sangriaInput, setSangriaInput, onConfirmar, historico }) {
   return (
     <div style={{ maxWidth: 460 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Sangria de Caixa</h1>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Sangria de Caixa</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Retirada de dinheiro do caixa durante o turno.</p>
 
       <div style={{ background: C.bgDark, borderRadius: 12, padding: 18, marginBottom: 16, textAlign: 'center' }}>
@@ -1758,14 +3002,13 @@ function SangriaScreen({ caixa, valorDisponivel, sangriaInput, setSangriaInput, 
   );
 }
 
-function RelatoriosScreen({ vendas, sangrias }) {
+function RelatoriosScreen({ aba, setAba, vendas, sangrias, produtos, financeiro }) {
   const [periodo, setPeriodo] = useState('diario');
+  const abas = ['Vendas', 'Produtos', 'Estoque', 'Financeiro', 'Operadores', 'Lucro'];
 
   const inicioPeriodo = useMemo(() => {
     const agora = new Date();
-    if (periodo === 'diario') {
-      return new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime();
-    }
+    if (periodo === 'diario') return new Date(agora.getFullYear(), agora.getMonth(), agora.getDate()).getTime();
     if (periodo === 'semanal') {
       const diaSemana = agora.getDay();
       const seg = new Date(agora);
@@ -1779,24 +3022,48 @@ function RelatoriosScreen({ vendas, sangrias }) {
   const vendasFiltradas = useMemo(() => vendas.filter((v) => v.hora >= inicioPeriodo && !v.cancelada), [vendas, inicioPeriodo]);
   const canceladasFiltradas = useMemo(() => vendas.filter((v) => v.hora >= inicioPeriodo && v.cancelada), [vendas, inicioPeriodo]);
   const sangriasFiltradas = useMemo(() => sangrias.filter((s) => s.hora >= inicioPeriodo), [sangrias, inicioPeriodo]);
+  const financeiroFiltrado = useMemo(() => financeiro.filter((f) => f.hora >= inicioPeriodo), [financeiro, inicioPeriodo]);
 
   const totalVendido = vendasFiltradas.reduce((s, v) => s + v.total, 0);
   const ticketMedio = vendasFiltradas.length ? totalVendido / vendasFiltradas.length : 0;
   const totalSangriasPeriodo = sangriasFiltradas.reduce((s, x) => s + x.valor, 0);
 
   const porForma = useMemo(() => {
-    const t = { Dinheiro: 0, 'Cartão Débito': 0, 'Cartão Crédito': 0, Pix: 0 };
+    const t = { Dinheiro: 0, 'Cartão Débito': 0, 'Cartão Crédito': 0, Pix: 0, Credário: 0 };
     vendasFiltradas.forEach((v) => { t[v.forma] = (t[v.forma] || 0) + v.total; });
     return t;
   }, [vendasFiltradas]);
 
   const produtosMaisVendidos = useMemo(() => {
     const mapa = {};
-    vendasFiltradas.forEach((v) => v.itens.forEach((i) => {
-      mapa[i.nome] = (mapa[i.nome] || 0) + i.qtd;
-    }));
-    return Object.entries(mapa).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    vendasFiltradas.forEach((v) => v.itens.forEach((i) => { mapa[i.nome] = (mapa[i.nome] || 0) + i.qtd; }));
+    return Object.entries(mapa).sort((a, b) => b[1] - a[1]);
   }, [vendasFiltradas]);
+
+  const porOperador = useMemo(() => {
+    const mapa = {};
+    vendasFiltradas.forEach((v) => {
+      if (!mapa[v.operador]) mapa[v.operador] = { total: 0, qtd: 0 };
+      mapa[v.operador].total += v.total;
+      mapa[v.operador].qtd += 1;
+    });
+    return Object.entries(mapa).sort((a, b) => b[1].total - a[1].total);
+  }, [vendasFiltradas]);
+
+  const custoVendido = useMemo(() => {
+    return vendasFiltradas.reduce((s, v) => s + v.itens.reduce((s2, i) => {
+      const p = produtos.find((pp) => pp.id === i.id);
+      return s2 + (p ? (p.custo || 0) * i.qtd : 0);
+    }, 0), 0);
+  }, [vendasFiltradas, produtos]);
+  const lucroBruto = totalVendido - custoVendido;
+  const margem = totalVendido ? (lucroBruto / totalVendido) * 100 : 0;
+
+  const entradasFin = financeiroFiltrado.filter((f) => f.valor > 0).reduce((s, f) => s + f.valor, 0);
+  const saidasFin = financeiroFiltrado.filter((f) => f.valor < 0).reduce((s, f) => s + Math.abs(f.valor), 0);
+
+  const valorTotalEstoque = produtos.reduce((s, p) => s + p.estoque * (p.custo || 0), 0);
+  const baixoEstoque = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10));
 
   const periodos = [
     { key: 'diario', label: 'Diário', icon: Calendar },
@@ -1806,23 +3073,30 @@ function RelatoriosScreen({ vendas, sangrias }) {
 
   function exportarCSV() {
     const linhas = [['Numero', 'Data/Hora', 'Forma', 'Subtotal', 'Desconto', 'Total', 'Operador']];
-    vendasFiltradas.forEach((v) => {
-      linhas.push([v.numero, dataHora(v.hora), v.forma, (v.subtotal ?? v.total).toFixed(2), (v.desconto ?? 0).toFixed(2), v.total.toFixed(2), v.operador]);
-    });
+    vendasFiltradas.forEach((v) => linhas.push([v.numero, dataHora(v.hora), v.forma, (v.subtotal ?? v.total).toFixed(2), (v.desconto ?? 0).toFixed(2), v.total.toFixed(2), v.operador]));
     const csv = linhas.map((l) => l.join(';')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `relatorio-${periodo}-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
+    a.href = url; a.download = `relatorio-${periodo}-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
   return (
-    <div style={{ maxWidth: 920 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Relatórios</h1>
-      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Desempenho de vendas por período.</p>
+    <div style={{ maxWidth: 960 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Relatórios</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 16px' }}>Desempenho do negócio por período.</p>
+
+      <div className="scroll-thin" style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', borderBottom: `1px solid ${C.borderLight}`, paddingBottom: 2 }}>
+        {abas.map((a) => (
+          <button key={a} onClick={() => setAba(a)} style={{
+            flexShrink: 0, padding: '8px 14px', borderRadius: '9px 9px 0 0', border: 'none', borderBottom: `2px solid ${aba === a ? C.primary : 'transparent'}`,
+            background: 'transparent', color: aba === a ? C.primaryDark : C.muted, fontWeight: aba === a ? 700 : 500, fontSize: 13, cursor: 'pointer',
+          }}>
+            {a}
+          </button>
+        ))}
+      </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, justifyContent: 'space-between', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -1832,79 +3106,131 @@ function RelatoriosScreen({ vendas, sangrias }) {
             return (
               <button key={p.key} onClick={() => setPeriodo(p.key)} style={{
                 display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 8,
-                border: `1.5px solid ${active ? C.accentDark : C.borderLight}`, background: active ? 'rgba(45,212,191,0.08)' : C.panel, cursor: 'pointer',
-                color: active ? C.accentDark : C.textDark, fontWeight: 600, fontSize: 13,
+                border: `1.5px solid ${active ? C.primaryDark : C.borderLight}`, background: active ? C.primarySoft : C.panel, cursor: 'pointer',
+                color: active ? C.primaryDark : C.textDark, fontWeight: 600, fontSize: 13,
               }}>
                 <Icon size={14} /> {p.label}
               </button>
             );
           })}
         </div>
-        <button onClick={exportarCSV} style={btnGhostSolid}>
-          <Receipt size={14} /> Exportar CSV
-        </button>
+        {aba === 'Vendas' && <button onClick={exportarCSV} style={btnGhostSolid}><Download size={14} /> Exportar CSV</button>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
-        <Card>
-          <span style={labelSm}>Total vendido</span>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(totalVendido)}</div>
-        </Card>
-        <Card>
-          <span style={labelSm}>Vendas concluídas</span>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{vendasFiltradas.length}</div>
-        </Card>
-        <Card>
-          <span style={labelSm}>Ticket médio</span>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(ticketMedio)}</div>
-        </Card>
-        <Card>
-          <span style={labelSm}>Sangrias no período</span>
-          <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.danger }}>{fmt(totalSangriasPeriodo)}</div>
-        </Card>
-      </div>
+      {aba === 'Vendas' && (
+        <>
+          <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 20 }}>
+            <Card><span style={labelSm}>Total vendido</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(totalVendido)}</div></Card>
+            <Card><span style={labelSm}>Vendas concluídas</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{vendasFiltradas.length}</div></Card>
+            <Card><span style={labelSm}>Ticket médio</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(ticketMedio)}</div></Card>
+            <Card><span style={labelSm}>Sangrias no período</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.danger }}>{fmt(totalSangriasPeriodo)}</div></Card>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Card>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Vendas por forma de pagamento</div>
+              {Object.entries(porForma).map(([forma, valor]) => (
+                <div key={forma} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 4 }}>
+                    <span style={{ color: C.muted }}>{forma}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{fmt(valor)}</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 99, background: C.bgLight, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: totalVendido ? `${(valor / totalVendido) * 100}%` : '0%', background: C.primary }} />
+                  </div>
+                </div>
+              ))}
+              {totalVendido === 0 && <div style={{ color: C.muted, fontSize: 12.5 }}>Sem vendas neste período.</div>}
+            </Card>
+            <Card>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Produtos mais vendidos</div>
+              {produtosMaisVendidos.length === 0 && <div style={{ color: C.muted, fontSize: 12.5 }}>Sem vendas neste período.</div>}
+              {produtosMaisVendidos.slice(0, 5).map(([nome, qtd], i) => (
+                <div key={nome} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '6px 0', borderTop: i > 0 ? `1px solid ${C.borderLight}` : 'none' }}>
+                  <span>{nome}</span>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: C.muted }}>{qtd} un.</span>
+                </div>
+              ))}
+            </Card>
+          </div>
+          {canceladasFiltradas.length > 0 && (
+            <div style={{ marginTop: 14, fontSize: 12, color: C.muted }}>{canceladasFiltradas.length} venda(s) cancelada(s) no período não entram nos totais acima.</div>
+          )}
+        </>
+      )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-        <Card>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Vendas por forma de pagamento</div>
-          {Object.entries(porForma).map(([forma, valor]) => (
-            <div key={forma} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, marginBottom: 4 }}>
-                <span style={{ color: C.muted }}>{forma}</span>
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{fmt(valor)}</span>
-              </div>
-              <div style={{ height: 6, borderRadius: 99, background: C.bgLight, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: totalVendido ? `${(valor / totalVendido) * 100}%` : '0%', background: C.accent }} />
-              </div>
+      {aba === 'Produtos' && (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase' }}>
+            <span style={{ flex: 1 }}>Produto</span><span style={{ width: 100, textAlign: 'right' }}>Qtd. vendida</span>
+          </div>
+          {produtosMaisVendidos.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Sem vendas no período.</div>}
+          {produtosMaisVendidos.map(([nome, qtd]) => (
+            <div key={nome} className="table-row" style={{ display: 'flex', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+              <span style={{ flex: 1 }}>{nome}</span>
+              <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>{qtd}</span>
             </div>
           ))}
-          {totalVendido === 0 && <div style={{ color: C.muted, fontSize: 12.5 }}>Sem vendas neste período.</div>}
         </Card>
+      )}
 
-        <Card>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Produtos mais vendidos</div>
-          {produtosMaisVendidos.length === 0 && <div style={{ color: C.muted, fontSize: 12.5 }}>Sem vendas neste período.</div>}
-          {produtosMaisVendidos.map(([nome, qtd], i) => (
-            <div key={nome} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, padding: '6px 0', borderTop: i > 0 ? `1px solid ${C.borderLight}` : 'none' }}>
-              <span>{nome}</span>
-              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: C.muted }}>{qtd} un.</span>
+      {aba === 'Estoque' && (
+        <>
+          <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14, marginBottom: 18 }}>
+            <Card><span style={labelSm}>Valor total em estoque</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(valorTotalEstoque)}</div></Card>
+            <Card><span style={labelSm}>Produtos abaixo do mínimo</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: baixoEstoque.length ? C.danger : C.accentDark }}>{baixoEstoque.length}</div></Card>
+          </div>
+          <Card style={{ padding: 0, overflow: 'hidden' }}>
+            {baixoEstoque.map((p) => (
+              <div key={p.id} className="table-row" style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+                <span>{p.nome}</span><span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.danger }}>{p.estoque} un.</span>
+              </div>
+            ))}
+            {baixoEstoque.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum produto abaixo do mínimo.</div>}
+          </Card>
+        </>
+      )}
+
+      {aba === 'Financeiro' && (
+        <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+          <Card><span style={labelSm}>Entradas</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.accentDark }}>{fmt(entradasFin)}</div></Card>
+          <Card><span style={labelSm}>Saídas</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.danger }}>{fmt(saidasFin)}</div></Card>
+          <Card><span style={labelSm}>Saldo do período</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(entradasFin - saidasFin)}</div></Card>
+        </div>
+      )}
+
+      {aba === 'Operadores' && (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase' }}>
+            <span style={{ flex: 1 }}>Operador</span><span style={{ width: 90, textAlign: 'right' }}>Vendas</span><span style={{ width: 110, textAlign: 'right' }}>Total</span>
+          </div>
+          {porOperador.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Sem vendas no período.</div>}
+          {porOperador.map(([nome, dados]) => (
+            <div key={nome} className="table-row" style={{ display: 'flex', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+              <span style={{ flex: 1 }}>{nome}</span>
+              <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace" }}>{dados.qtd}</span>
+              <span style={{ width: 110, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(dados.total)}</span>
             </div>
           ))}
         </Card>
-      </div>
+      )}
 
-      {canceladasFiltradas.length > 0 && (
-        <div style={{ marginTop: 14, fontSize: 12, color: C.muted }}>
-          {canceladasFiltradas.length} venda(s) cancelada(s) no período não entram nos totais acima.
+      {aba === 'Lucro' && (
+        <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+          <Card><span style={labelSm}>Receita</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(totalVendido)}</div></Card>
+          <Card><span style={labelSm}>Custo dos produtos</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.danger }}>{fmt(custoVendido)}</div></Card>
+          <Card><span style={labelSm}>Lucro bruto</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: C.accentDark }}>{fmt(lucroBruto)}</div></Card>
+          <Card><span style={labelSm}>Margem</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{margem.toFixed(1)}%</div></Card>
         </div>
       )}
     </div>
   );
 }
 
-function ConfiguracoesScreen({ config, setConfig }) {
+function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImportar, onResetar }) {
   const [local, setLocal] = useState(config);
   const [salvo, setSalvo] = useState(false);
+  const [confirmarReset, setConfirmarReset] = useState(false);
+  const abas = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Sistema'];
 
   function salvar(e) {
     e.preventDefault();
@@ -1913,78 +3239,922 @@ function ConfiguracoesScreen({ config, setConfig }) {
     setTimeout(() => setSalvo(false), 2000);
   }
 
+  function handleImportFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { onImportar(JSON.parse(reader.result)); } catch { /* ignorado */ }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  const SalvarBtn = () => (
+    <>
+      <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 20 }}>
+        <Check size={15} /> Salvar Configurações
+      </button>
+      {salvo && (
+        <div style={{ display: 'flex', gap: 7, alignItems: 'center', justifyContent: 'center', color: C.accentDark, fontSize: 12.5, fontWeight: 600, marginTop: 10 }}>
+          <CheckCircle2 size={14} /> Configurações salvas
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div style={{ maxWidth: 480 }}>
-      <h1 style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Configurações</h1>
-      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Dados usados na emissão de cupons e identificação da loja.</p>
+    <div style={{ maxWidth: 520 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Configurações</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 16px' }}>Preferências gerais do sistema.</p>
 
-      <form onSubmit={salvar}>
-        <Card>
-          <label style={labelSm}>Nome da loja</label>
-          <input value={local.nomeLoja} onChange={(e) => setLocal({ ...local, nomeLoja: e.target.value })} style={inputLightStyle} />
-
-          <label style={{ ...labelSm, marginTop: 14 }}>CNPJ</label>
-          <input value={local.cnpj} onChange={(e) => setLocal({ ...local, cnpj: e.target.value })} placeholder="00.000.000/0000-00" style={inputLightStyle} />
-
-          <label style={{ ...labelSm, marginTop: 14 }}>Endereço</label>
-          <input value={local.endereco} onChange={(e) => setLocal({ ...local, endereco: e.target.value })} placeholder="Rua, número, bairro, cidade" style={inputLightStyle} />
-
-          <label style={{ ...labelSm, marginTop: 14 }}>Mensagem de rodapé do cupom</label>
-          <input value={local.mensagemRodape} onChange={(e) => setLocal({ ...local, mensagemRodape: e.target.value })} style={inputLightStyle} />
-
-          <label style={{ ...labelSm, marginTop: 14 }}>Largura da bobina térmica</label>
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-            {['58mm', '80mm'].map((l) => (
-              <button type="button" key={l} onClick={() => setLocal({ ...local, larguraCupom: l })} style={{
-                flex: 1, padding: '9px 0', borderRadius: 8, border: `1.5px solid ${local.larguraCupom === l ? C.accentDark : C.borderLight}`,
-                background: local.larguraCupom === l ? 'rgba(45,212,191,0.08)' : C.panel, color: local.larguraCupom === l ? C.accentDark : C.textDark,
-                fontWeight: 600, fontSize: 13, cursor: 'pointer',
-              }}>
-                {l}
-              </button>
-            ))}
-          </div>
-
-          <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 20 }}>
-            <Check size={15} /> Salvar Configurações
+      <div className="scroll-thin" style={{ display: 'flex', gap: 6, marginBottom: 18, overflowX: 'auto', borderBottom: `1px solid ${C.borderLight}`, paddingBottom: 2 }}>
+        {abas.map((a) => (
+          <button key={a} onClick={() => setAba(a)} style={{
+            flexShrink: 0, padding: '8px 14px', borderRadius: '9px 9px 0 0', border: 'none', borderBottom: `2px solid ${aba === a ? C.primary : 'transparent'}`,
+            background: 'transparent', color: aba === a ? C.primaryDark : C.muted, fontWeight: aba === a ? 700 : 500, fontSize: 13, cursor: 'pointer',
+          }}>
+            {a}
           </button>
-          {salvo && (
-            <div style={{ display: 'flex', gap: 7, alignItems: 'center', justifyContent: 'center', color: C.accentDark, fontSize: 12.5, fontWeight: 600, marginTop: 10 }}>
-              <CheckCircle2 size={14} /> Configurações salvas
+        ))}
+      </div>
+
+      {aba === 'Empresa' && (
+        <form onSubmit={salvar}>
+          <Card>
+            <label style={labelSm}>Nome da loja</label>
+            <input value={local.nomeLoja} onChange={(e) => setLocal({ ...local, nomeLoja: e.target.value })} style={inputLightStyle} />
+            <label style={{ ...labelSm, marginTop: 14 }}>CNPJ</label>
+            <input value={local.cnpj} onChange={(e) => setLocal({ ...local, cnpj: e.target.value })} placeholder="00.000.000/0000-00" style={inputLightStyle} />
+            <label style={{ ...labelSm, marginTop: 14 }}>Endereço</label>
+            <input value={local.endereco} onChange={(e) => setLocal({ ...local, endereco: e.target.value })} placeholder="Rua, número, bairro, cidade" style={inputLightStyle} />
+            <SalvarBtn />
+          </Card>
+        </form>
+      )}
+
+      {aba === 'Impressora' && (
+        <form onSubmit={salvar}>
+          <Card>
+            <label style={labelSm}>Mensagem de rodapé do cupom</label>
+            <input value={local.mensagemRodape} onChange={(e) => setLocal({ ...local, mensagemRodape: e.target.value })} style={inputLightStyle} />
+            <label style={{ ...labelSm, marginTop: 14 }}>Largura da bobina térmica</label>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              {['58mm', '80mm'].map((l) => (
+                <button type="button" key={l} onClick={() => setLocal({ ...local, larguraCupom: l })} style={{
+                  flex: 1, padding: '9px 0', borderRadius: 8, border: `1.5px solid ${local.larguraCupom === l ? C.primaryDark : C.borderLight}`,
+                  background: local.larguraCupom === l ? C.primarySoft : C.panel, color: local.larguraCupom === l ? C.primaryDark : C.textDark,
+                  fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                }}>
+                  {l}
+                </button>
+              ))}
             </div>
-          )}
+            <SalvarBtn />
+          </Card>
+        </form>
+      )}
+
+      {aba === 'Pagamentos' && (
+        <form onSubmit={salvar}>
+          <Card>
+            <p style={{ fontSize: 12.5, color: C.muted, margin: '0 0 14px' }}>Ative ou desative formas de pagamento aceitas no PDV.</p>
+            {Object.keys(local.formasAceitas || {}).map((forma) => (
+              <label key={forma} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 0', borderTop: `1px solid ${C.borderLight}`, fontSize: 13.5 }}>
+                {forma}
+                <input type="checkbox" checked={local.formasAceitas[forma]} onChange={(e) => setLocal({ ...local, formasAceitas: { ...local.formasAceitas, [forma]: e.target.checked } })} />
+              </label>
+            ))}
+            <SalvarBtn />
+          </Card>
+        </form>
+      )}
+
+      {aba === 'Pix' && (
+        <form onSubmit={salvar}>
+          <Card>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+              <QrCode size={15} color={C.accentDark} />
+              <span style={{ fontWeight: 700, fontSize: 13.5 }}>Recebimento via Pix</span>
+            </div>
+            <p style={{ fontSize: 12, color: C.muted, margin: '0 0 14px' }}>O QR Code exibido na tela de pagamento é gerado com esses dados — o valor cai direto nesta chave.</p>
+
+            <label style={labelSm}>Chave Pix (CPF/CNPJ, e-mail, telefone ou aleatória)</label>
+            <input value={local.chavePix} onChange={(e) => setLocal({ ...local, chavePix: e.target.value })} placeholder="exemplo@banco.com.br" style={{ ...inputLightStyle, fontFamily: "'JetBrains Mono',monospace" }} />
+            {local.chavePix.trim() && (() => {
+              const info = detectarTipoChavePix(local.chavePix);
+              return info ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11.5, color: info.ok ? C.accentDark : C.danger }}>
+                  {info.ok ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
+                  <span>{info.tipo}{info.aviso ? ` — ${info.aviso}` : ''}</span>
+                </div>
+              ) : null;
+            })()}
+            <p style={{ fontSize: 11, color: C.muted, margin: '6px 0 0' }}>Digite a chave exatamente como está cadastrada no banco (para CPF/CNPJ, só números; para telefone, use o formato +55DDNÚMERO).</p>
+
+            <label style={{ ...labelSm, marginTop: 14 }}>Nome do recebedor</label>
+            <input value={local.nomeRecebedorPix} onChange={(e) => setLocal({ ...local, nomeRecebedorPix: e.target.value })} maxLength={25} style={inputLightStyle} />
+
+            <label style={{ ...labelSm, marginTop: 14 }}>Cidade do recebedor</label>
+            <input value={local.cidadeRecebedorPix} onChange={(e) => setLocal({ ...local, cidadeRecebedorPix: e.target.value })} maxLength={15} style={inputLightStyle} />
+
+            <SalvarBtn />
+          </Card>
+        </form>
+      )}
+
+      {aba === 'Backup' && (
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+            <Database size={15} color={C.primaryDark} />
+            <span style={{ fontWeight: 700, fontSize: 13.5 }}>Backup dos dados</span>
+          </div>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>Exporte todos os dados do sistema em um arquivo JSON, ou restaure a partir de um backup anterior.</p>
+          <button type="button" onClick={onExportar} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginBottom: 10 }}>
+            <Download size={15} /> Exportar Backup
+          </button>
+          <label style={{ ...btnGhostSolid, width: '100%', justifyContent: 'center', boxSizing: 'border-box', cursor: 'pointer' }}>
+            <Upload size={15} /> Importar Backup
+            <input type="file" accept=".json" onChange={handleImportFile} style={{ display: 'none' }} />
+          </label>
+        </Card>
+      )}
+
+      {aba === 'Sistema' && (
+        <Card>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+            <Cog size={15} color={C.primaryDark} />
+            <span style={{ fontWeight: 700, fontSize: 13.5 }}>Sistema</span>
+          </div>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>PDV Terminal — versão 1.0. Dados armazenados apenas em memória (resetam ao recarregar a página, exceto se restaurados de um backup).</p>
+          <div style={{ borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 12.5, color: C.danger, marginBottom: 8 }}>Zona de risco</div>
+            {!confirmarReset ? (
+              <button type="button" onClick={() => setConfirmarReset(true)} style={{ ...btnGhostSolid, borderColor: C.danger, color: C.danger }}>
+                <Trash2 size={14} /> Restaurar dados de fábrica
+              </button>
+            ) : (
+              <div>
+                <p style={{ fontSize: 12.5, color: C.danger, marginBottom: 8 }}>Isso apaga vendas, produtos cadastrados, financeiro e tudo mais. Confirma?</p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => { onResetar(); setConfirmarReset(false); }} style={btnDanger}><Check size={14} /> Sim, restaurar</button>
+                  <button type="button" onClick={() => setConfirmarReset(false)} style={btnGhostSolid}>Cancelar</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function CategoriasScreen({ categorias, produtos, onAdd, onEdit, onDelete }) {
+  const [novo, setNovo] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editValor, setEditValor] = useState('');
+
+  function contar(nome) {
+    return produtos.filter((p) => p.categoria === nome).length;
+  }
+
+  return (
+    <div style={{ maxWidth: 560 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Categorias</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Organize os produtos por categoria. Renomear atualiza todos os produtos vinculados.</p>
+
+      <form onSubmit={(e) => { e.preventDefault(); onAdd(novo); setNovo(''); }} style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+        <input value={novo} onChange={(e) => setNovo(e.target.value)} placeholder="Nova categoria (ex: Padaria)" style={{ ...inputLightStyle, flex: 1 }} />
+        <button type="submit" style={btnPrimary}><Plus size={14} /> Adicionar</button>
+      </form>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1 }}>Categoria</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Produtos</span>
+          <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
+        </div>
+        {categorias.map((c) => {
+          const editando = editId === c.id;
+          return (
+            <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+              {editando ? (
+                <>
+                  <input value={editValor} onChange={(e) => setEditValor(e.target.value)} style={{ flex: 1, border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 7px', fontSize: 12.5 }} />
+                  <span style={{ width: 90 }} />
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => { onEdit(c.id, editValor); setEditId(null); }} style={iconBtn}><Check size={13} color={C.accentDark} /></button>
+                    <button onClick={() => setEditId(null)} style={iconBtn}><X size={13} color={C.muted} /></button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span style={{ flex: 1, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 7 }}><Tags size={13} color={C.muted} />{c.nome}</span>
+                  <span style={{ width: 90, textAlign: 'right', color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{contar(c.nome)}</span>
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => { setEditId(c.id); setEditValor(c.nome); }} style={iconBtn}><Pencil size={13} color={C.muted} /></button>
+                    <button onClick={() => onDelete(c.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {categorias.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma categoria cadastrada.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function EstoqueVisaoScreen({ produtos, onAjustar }) {
+  const [busca, setBusca] = useState('');
+  const [ajusteAberto, setAjusteAberto] = useState(null);
+  const [ajusteQtd, setAjusteQtd] = useState('');
+  const [ajusteTipo, setAjusteTipo] = useState('entrada');
+
+  const lista = produtos.filter((p) => p.nome.toLowerCase().includes(busca.toLowerCase()));
+  const valorTotalEstoque = produtos.reduce((s, p) => s + p.estoque * (p.custo || 0), 0);
+  const totalUnidades = produtos.reduce((s, p) => s + p.estoque, 0);
+  const alertas = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10)).length;
+
+  function aplicarAjuste(id) {
+    const n = parseInt(ajusteQtd, 10);
+    if (isNaN(n) || n <= 0) return;
+    onAjustar({ produtoId: id, quantidade: ajusteTipo === 'entrada' ? n : -n, motivo: 'Ajuste rápido — visão de estoque' });
+    setAjusteAberto(null);
+    setAjusteQtd('');
+  }
+
+  return (
+    <div style={{ maxWidth: 920 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Estoque</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Visão geral de níveis de estoque, com ajuste rápido.</p>
+
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 18 }}>
+        <Card><span style={labelSm}>Valor total em estoque (custo)</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{fmt(valorTotalEstoque)}</div></Card>
+        <Card><span style={labelSm}>Unidades em estoque</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6 }}>{totalUnidades}</div></Card>
+        <Card><span style={labelSm}>Produtos em alerta</span><div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 19, marginTop: 6, color: alertas > 0 ? C.danger : C.accentDark }}>{alertas}</div></Card>
+      </div>
+
+      <div style={{ position: 'relative', marginBottom: 14, maxWidth: 320 }}>
+        <Search size={14} color={C.muted} style={{ position: 'absolute', left: 11, top: 10 }} />
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto..." style={{ ...inputLightStyle, paddingLeft: 32 }} />
+      </div>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Produto</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Estoque</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Mínimo</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Ação</span>
+        </div>
+        {lista.map((p) => {
+          const baixo = p.estoque <= (p.estoqueMinimo ?? 10);
+          const aberto = ajusteAberto === p.id;
+          return (
+            <div key={p.id} style={{ borderTop: `1px solid ${C.borderLight}` }}>
+              <div className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', fontSize: 13 }}>
+                <span style={{ flex: 1.6, display: 'flex', alignItems: 'center', gap: 7 }}>
+                  {baixo && <span style={{ width: 7, height: 7, borderRadius: 99, background: p.estoque === 0 ? C.danger : C.warn }} />}
+                  {p.nome}
+                </span>
+                <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: baixo ? (p.estoque === 0 ? C.danger : C.warn) : C.textDark }}>{p.estoque}</span>
+                <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{p.estoqueMinimo ?? 10}</span>
+                <span style={{ width: 100, textAlign: 'right' }}>
+                  <button onClick={() => { setAjusteAberto(aberto ? null : p.id); setAjusteQtd(''); }} style={{ ...btnGhostSolid, padding: '4px 10px', fontSize: 11.5 }}>
+                    <SlidersHorizontal size={12} /> Ajustar
+                  </button>
+                </span>
+              </div>
+              {aberto && (
+                <div style={{ padding: '0 16px 12px', display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {['entrada', 'saida'].map((t) => (
+                    <button key={t} onClick={() => setAjusteTipo(t)} style={{
+                      padding: '5px 10px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                      border: `1.5px solid ${ajusteTipo === t ? C.primaryDark : C.borderLight}`,
+                      background: ajusteTipo === t ? C.primarySoft : C.panel, color: ajusteTipo === t ? C.primaryDark : C.textDark,
+                    }}>
+                      {t === 'entrada' ? 'Entrada (+)' : 'Saída (−)'}
+                    </button>
+                  ))}
+                  <input value={ajusteQtd} onChange={(e) => setAjusteQtd(e.target.value)} placeholder="Qtd." inputMode="numeric" style={{ width: 80, border: `1px solid ${C.borderLight}`, borderRadius: 7, padding: '5px 8px', fontSize: 12.5 }} />
+                  <button onClick={() => aplicarAjuste(p.id)} style={{ ...btnPrimary, padding: '5px 12px', fontSize: 11.5 }}><Check size={12} /> Aplicar</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {lista.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum produto encontrado.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function ClientesScreen({ clientes, onAdd, onEdit, onDelete }) {
+  const [novo, setNovo] = useState({ nome: '', telefone: '', cpf: '', endereco: '', limiteCredito: '' });
+  const [erroForm, setErroForm] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editValues, setEditValues] = useState({});
+  const cellInput = { width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 6, padding: '5px 7px', fontSize: 12.5 };
+
+  function submitNovo(e) {
+    e.preventDefault();
+    if (!novo.nome.trim()) { setErroForm('Informe ao menos o nome do cliente.'); return; }
+    onAdd({ nome: novo.nome.trim(), telefone: novo.telefone.trim(), cpf: novo.cpf.trim(), endereco: novo.endereco.trim(), limiteCredito: parseFloat(String(novo.limiteCredito).replace(',', '.')) || 0 });
+    setNovo({ nome: '', telefone: '', cpf: '', endereco: '', limiteCredito: '' });
+    setErroForm('');
+  }
+
+  function iniciarEdicao(c) {
+    setEditId(c.id);
+    setEditValues({ nome: c.nome, telefone: c.telefone, cpf: c.cpf, endereco: c.endereco, limiteCredito: String(c.limiteCredito || 0) });
+  }
+
+  function salvarEdicao(id) {
+    if (!editValues.nome.trim()) return;
+    onEdit(id, { ...editValues, limiteCredito: parseFloat(String(editValues.limiteCredito).replace(',', '.')) || 0 });
+    setEditId(null);
+  }
+
+  return (
+    <div style={{ maxWidth: 920 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Clientes</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 20px' }}>Cadastro usado no credário e na identificação de vendas.</p>
+
+      <form onSubmit={submitNovo}>
+        <Card style={{ marginBottom: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Novo cliente</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr 1fr 1.4fr 1fr auto', gap: 10, alignItems: 'end' }}>
+            <div><label style={labelSm}>Nome</label><input value={novo.nome} onChange={(e) => setNovo({ ...novo, nome: e.target.value })} placeholder="Nome completo" style={cellInput} /></div>
+            <div><label style={labelSm}>Telefone</label><input value={novo.telefone} onChange={(e) => setNovo({ ...novo, telefone: e.target.value })} placeholder="(11) 99999-9999" style={cellInput} /></div>
+            <div><label style={labelSm}>CPF</label><input value={novo.cpf} onChange={(e) => setNovo({ ...novo, cpf: e.target.value })} placeholder="000.000.000-00" style={cellInput} /></div>
+            <div><label style={labelSm}>Endereço</label><input value={novo.endereco} onChange={(e) => setNovo({ ...novo, endereco: e.target.value })} placeholder="Rua, número, bairro" style={cellInput} /></div>
+            <div><label style={labelSm}>Limite credário</label><input value={novo.limiteCredito} onChange={(e) => setNovo({ ...novo, limiteCredito: e.target.value })} placeholder="0,00" inputMode="decimal" style={cellInput} /></div>
+            <button type="submit" style={{ ...btnPrimary, height: 33, padding: '0 14px' }}><Plus size={14} /> Adicionar</button>
+          </div>
+          {erroForm && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erroForm}</div>}
         </Card>
       </form>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1.6 }}>Nome</span>
+          <span style={{ flex: 1 }}>Telefone</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Limite</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Saldo devedor</span>
+          <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
+        </div>
+        {clientes.map((c) => {
+          const editando = editId === c.id;
+          return (
+            <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+              {editando ? (
+                <>
+                  <input value={editValues.nome} onChange={(e) => setEditValues({ ...editValues, nome: e.target.value })} style={{ ...cellInput, flex: 1.6 }} />
+                  <input value={editValues.telefone} onChange={(e) => setEditValues({ ...editValues, telefone: e.target.value })} style={{ ...cellInput, flex: 1 }} />
+                  <input value={editValues.limiteCredito} onChange={(e) => setEditValues({ ...editValues, limiteCredito: e.target.value })} style={{ ...cellInput, width: 100 }} />
+                  <span style={{ width: 100 }} />
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => salvarEdicao(c.id)} style={iconBtn}><Check size={13} color={C.accentDark} /></button>
+                    <button onClick={() => setEditId(null)} style={iconBtn}><X size={13} color={C.muted} /></button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span style={{ flex: 1.6, fontWeight: 500 }}>{c.nome}</span>
+                  <span style={{ flex: 1, color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 12 }}>{c.telefone || '—'}</span>
+                  <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{fmt(c.limiteCredito || 0)}</span>
+                  <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: (c.saldoDevedor || 0) > 0 ? C.danger : C.accentDark }}>{fmt(c.saldoDevedor || 0)}</span>
+                  <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+                    <button onClick={() => iniciarEdicao(c)} style={iconBtn}><Pencil size={13} color={C.muted} /></button>
+                    <button onClick={() => onDelete(c.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {clientes.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum cliente cadastrado.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function TrocasScreen({ produtos, trocas, onConfirmar }) {
+  const [saidaId, setSaidaId] = useState('');
+  const [qtdSaida, setQtdSaida] = useState('1');
+  const [entradaId, setEntradaId] = useState('');
+  const [qtdEntrada, setQtdEntrada] = useState('1');
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState('');
+
+  function submit(e) {
+    e.preventDefault();
+    if (!saidaId || !entradaId) { setErro('Selecione o produto devolvido e o novo produto.'); return; }
+    const qs = parseInt(qtdSaida, 10), qe = parseInt(qtdEntrada, 10);
+    if (isNaN(qs) || qs <= 0 || isNaN(qe) || qe <= 0) { setErro('Informe quantidades válidas.'); return; }
+    const pEnt = produtos.find((p) => p.id === Number(entradaId));
+    if (pEnt && qe > pEnt.estoque) { setErro('Estoque insuficiente do novo produto.'); return; }
+    onConfirmar({ produtoSaidaId: Number(saidaId), qtdSaida: qs, produtoEntradaId: Number(entradaId), qtdEntrada: qe, motivo });
+    setSaidaId(''); setEntradaId(''); setQtdSaida('1'); setQtdEntrada('1'); setMotivo(''); setErro('');
+  }
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Trocas</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Troca de um produto por outro — estoque e financeiro ajustados automaticamente.</p>
+
+      <form onSubmit={submit}>
+        <Card style={{ marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 8, color: C.danger }}>Produto devolvido</div>
+              <label style={labelSm}>Produto</label>
+              <select value={saidaId} onChange={(e) => setSaidaId(e.target.value)} style={{ ...inputLightStyle, marginBottom: 10 }}>
+                <option value="">Selecione...</option>
+                {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+              </select>
+              <label style={labelSm}>Quantidade</label>
+              <input value={qtdSaida} onChange={(e) => setQtdSaida(e.target.value)} inputMode="numeric" style={inputLightStyle} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 12.5, marginBottom: 8, color: C.accentDark }}>Novo produto</div>
+              <label style={labelSm}>Produto</label>
+              <select value={entradaId} onChange={(e) => setEntradaId(e.target.value)} style={{ ...inputLightStyle, marginBottom: 10 }}>
+                <option value="">Selecione...</option>
+                {produtos.map((p) => <option key={p.id} value={p.id}>{p.nome} ({p.estoque} un.)</option>)}
+              </select>
+              <label style={labelSm}>Quantidade</label>
+              <input value={qtdEntrada} onChange={(e) => setQtdEntrada(e.target.value)} inputMode="numeric" style={inputLightStyle} />
+            </div>
+          </div>
+          <label style={{ ...labelSm, marginTop: 14 }}>Motivo (opcional)</label>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex: tamanho errado, cliente preferiu outro sabor..." style={inputLightStyle} />
+          {erro && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erro}</div>}
+          <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}><ArrowLeftRight size={15} /> Confirmar Troca</button>
+        </Card>
+      </form>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 60 }}>Nº</span>
+          <span style={{ flex: 1 }}>Troca</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Diferença</span>
+        </div>
+        {[...trocas].reverse().map((t) => (
+          <div key={t.numero} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
+            <span style={{ width: 60, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>#{String(t.numero).padStart(4, '0')}</span>
+            <span style={{ flex: 1, color: C.muted }}>{t.qtdSaida}x {t.produtoSaida} → {t.qtdEntrada}x {t.produtoEntrada} · {dataHora(t.hora)}</span>
+            <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: t.diferenca >= 0 ? C.accentDark : C.danger }}>{t.diferenca >= 0 ? '+' : ''}{fmt(t.diferenca)}</span>
+          </div>
+        ))}
+        {trocas.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma troca registrada.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function DevolucoesScreen({ vendas, devolucoes, onConfirmar }) {
+  const [vendaNumero, setVendaNumero] = useState('');
+  const [itensSelecionados, setItensSelecionados] = useState({});
+  const [motivo, setMotivo] = useState('');
+  const [erro, setErro] = useState('');
+
+  const venda = vendas.find((v) => v.numero === Number(vendaNumero) && !v.cancelada);
+
+  function toggleItem(item) {
+    setItensSelecionados((prev) => {
+      const copy = { ...prev };
+      if (copy[item.id]) delete copy[item.id];
+      else copy[item.id] = { produtoId: item.id, nome: item.nome, preco: item.preco, qtd: item.qtd };
+      return copy;
+    });
+  }
+
+  function submit(e) {
+    e.preventDefault();
+    const itens = Object.values(itensSelecionados);
+    if (itens.length === 0) { setErro('Selecione ao menos um item para devolver.'); return; }
+    onConfirmar({ vendaNumero: venda ? venda.numero : null, itens, motivo });
+    setVendaNumero(''); setItensSelecionados({}); setMotivo(''); setErro('');
+  }
+
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Devoluções</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Devolução parcial de itens de uma venda, com reposição de estoque.</p>
+
+      <form onSubmit={submit}>
+        <Card style={{ marginBottom: 20 }}>
+          <label style={labelSm}>Número da venda</label>
+          <input value={vendaNumero} onChange={(e) => setVendaNumero(e.target.value)} placeholder="Ex: 12" inputMode="numeric" style={{ ...inputLightStyle, maxWidth: 160, marginBottom: 12 }} />
+
+          {venda ? (
+            <div>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Selecione os itens a devolver:</div>
+              {venda.itens.map((i) => (
+                <label key={i.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 13, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!itensSelecionados[i.id]} onChange={() => toggleItem(i)} />
+                  {i.qtd}x {i.nome} — {fmt(i.preco * i.qtd)}
+                </label>
+              ))}
+            </div>
+          ) : (
+            vendaNumero && <div style={{ fontSize: 12.5, color: C.warn }}>Venda não encontrada.</div>
+          )}
+
+          <label style={{ ...labelSm, marginTop: 14 }}>Motivo</label>
+          <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex: produto com defeito, arrependimento..." style={inputLightStyle} />
+
+          {erro && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erro}</div>}
+          <button type="submit" style={{ ...btnDanger, width: '100%', justifyContent: 'center', marginTop: 16 }}><Undo2 size={15} /> Confirmar Devolução</button>
+        </Card>
+      </form>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 60 }}>Nº</span>
+          <span style={{ flex: 1 }}>Referente</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Valor</span>
+        </div>
+        {[...devolucoes].reverse().map((d) => (
+          <div key={d.numero} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
+            <span style={{ width: 60, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>#{String(d.numero).padStart(4, '0')}</span>
+            <span style={{ flex: 1, color: C.muted }}>{d.vendaNumero ? `Venda #${d.vendaNumero}` : 'Avulsa'} · {d.itens.length} item(ns) · {dataHora(d.hora)}</span>
+            <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.danger }}>-{fmt(d.valorTotal)}</span>
+          </div>
+        ))}
+        {devolucoes.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma devolução registrada.</div>}
+      </Card>
+    </div>
+  );
+}
+
+
+function CredarioScreen({ clientes, contasReceber, onReceber }) {
+  const devedores = clientes.filter((c) => (c.saldoDevedor || 0) > 0);
+  const pendencias = contasReceber.filter((c) => c.clienteId && !c.recebido);
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Credário</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Clientes com saldo em aberto e parcelas pendentes.</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 18 }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1 }}>Cliente</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Limite</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Saldo devedor</span>
+        </div>
+        {devedores.map((c) => (
+          <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+            <span style={{ flex: 1, fontWeight: 500 }}>{c.nome}</span>
+            <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>{fmt(c.limiteCredito || 0)}</span>
+            <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.danger }}>{fmt(c.saldoDevedor)}</span>
+          </div>
+        ))}
+        {devedores.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum cliente com saldo em aberto.</div>}
+      </Card>
+
+      <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 10 }}>Parcelas pendentes</div>
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1 }}>Descrição</span>
+          <span style={{ width: 100, textAlign: 'right' }}>Vencimento</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Valor</span>
+          <span style={{ width: 90, textAlign: 'right' }}>Ação</span>
+        </div>
+        {pendencias.map((c) => (
+          <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+            <span style={{ flex: 1 }}>{c.descricao}<br /><span style={{ fontSize: 11, color: C.muted }}>{c.clienteNome}</span></span>
+            <span style={{ width: 100, textAlign: 'right', fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>{new Date(c.vencimento).toLocaleDateString('pt-BR')}</span>
+            <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(c.valor)}</span>
+            <span style={{ width: 90, textAlign: 'right' }}>
+              <button onClick={() => onReceber(c.id)} style={{ ...btnGhostSolid, padding: '4px 10px', fontSize: 11.5 }}><Check size={12} /> Receber</button>
+            </span>
+          </div>
+        ))}
+        {pendencias.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma parcela pendente.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function ContasPagarScreen({ contas, fornecedores, onAdd, onPagar, onDelete }) {
+  const [novo, setNovo] = useState({ descricao: '', fornecedorId: '', valor: '', vencimento: '' });
+  const pendentes = contas.filter((c) => !c.pago);
+  const pagas = contas.filter((c) => c.pago);
+
+  function submit(e) {
+    e.preventDefault();
+    const valor = parseFloat(String(novo.valor).replace(',', '.'));
+    if (!novo.descricao.trim() || isNaN(valor) || valor <= 0 || !novo.vencimento) return;
+    const fornecedor = fornecedores.find((f) => f.id === Number(novo.fornecedorId));
+    onAdd({ descricao: novo.descricao.trim(), fornecedorId: fornecedor ? fornecedor.id : null, fornecedorNome: fornecedor ? fornecedor.nome : null, valor, vencimento: new Date(novo.vencimento).getTime() });
+    setNovo({ descricao: '', fornecedorId: '', valor: '', vencimento: '' });
+  }
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Contas a Pagar</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Compromissos financeiros — ao pagar, lança automaticamente no fluxo de caixa.</p>
+
+      <form onSubmit={submit}>
+        <Card style={{ marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+            <div><label style={labelSm}>Descrição</label><input value={novo.descricao} onChange={(e) => setNovo({ ...novo, descricao: e.target.value })} placeholder="Ex: Aluguel, energia..." style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Fornecedor (opcional)</label>
+              <select value={novo.fornecedorId} onChange={(e) => setNovo({ ...novo, fornecedorId: e.target.value })} style={inputLightStyle}>
+                <option value="">—</option>
+                {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select>
+            </div>
+            <div><label style={labelSm}>Valor (R$)</label><input value={novo.valor} onChange={(e) => setNovo({ ...novo, valor: e.target.value })} inputMode="decimal" placeholder="0,00" style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Vencimento</label><input type="date" value={novo.vencimento} onChange={(e) => setNovo({ ...novo, vencimento: e.target.value })} style={inputLightStyle} /></div>
+            <button type="submit" style={{ ...btnPrimary, height: 33 }}><Plus size={14} /> Adicionar</button>
+          </div>
+        </Card>
+      </form>
+
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Pendentes</div>
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 18 }}>
+        {pendentes.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhuma conta pendente.</div>}
+        {pendentes.map((c) => (
+          <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+            <span style={{ flex: 1 }}>{c.descricao} {c.fornecedorNome ? `— ${c.fornecedorNome}` : ''}</span>
+            <span style={{ fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>venc. {new Date(c.vencimento).toLocaleDateString('pt-BR')}</span>
+            <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(c.valor)}</span>
+            <button onClick={() => onPagar(c.id)} style={{ ...btnGhostSolid, padding: '4px 10px', fontSize: 11.5 }}><Check size={12} /> Pagar</button>
+            <button onClick={() => onDelete(c.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+          </div>
+        ))}
+      </Card>
+
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Pagas</div>
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        {pagas.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhuma conta paga ainda.</div>}
+        {pagas.map((c) => (
+          <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, color: C.muted }}>
+            <span style={{ flex: 1, textDecoration: 'line-through' }}>{c.descricao}</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{fmt(c.valor)}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function ContasReceberScreen({ contas, clientes, onAdd, onReceber, onDelete }) {
+  const [novo, setNovo] = useState({ descricao: '', clienteId: '', valor: '', vencimento: '' });
+  const pendentes = contas.filter((c) => !c.recebido);
+  const recebidas = contas.filter((c) => c.recebido);
+
+  function submit(e) {
+    e.preventDefault();
+    const valor = parseFloat(String(novo.valor).replace(',', '.'));
+    if (!novo.descricao.trim() || isNaN(valor) || valor <= 0 || !novo.vencimento) return;
+    const cliente = clientes.find((c) => c.id === Number(novo.clienteId));
+    onAdd({ descricao: novo.descricao.trim(), clienteId: cliente ? cliente.id : null, clienteNome: cliente ? cliente.nome : null, valor, vencimento: new Date(novo.vencimento).getTime() });
+    setNovo({ descricao: '', clienteId: '', valor: '', vencimento: '' });
+  }
+
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Contas a Receber</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Inclui parcelas do credário e outros recebíveis avulsos.</p>
+
+      <form onSubmit={submit}>
+        <Card style={{ marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+            <div><label style={labelSm}>Descrição</label><input value={novo.descricao} onChange={(e) => setNovo({ ...novo, descricao: e.target.value })} placeholder="Ex: Venda avulsa a prazo..." style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Cliente (opcional)</label>
+              <select value={novo.clienteId} onChange={(e) => setNovo({ ...novo, clienteId: e.target.value })} style={inputLightStyle}>
+                <option value="">—</option>
+                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+            <div><label style={labelSm}>Valor (R$)</label><input value={novo.valor} onChange={(e) => setNovo({ ...novo, valor: e.target.value })} inputMode="decimal" placeholder="0,00" style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Vencimento</label><input type="date" value={novo.vencimento} onChange={(e) => setNovo({ ...novo, vencimento: e.target.value })} style={inputLightStyle} /></div>
+            <button type="submit" style={{ ...btnPrimary, height: 33 }}><Plus size={14} /> Adicionar</button>
+          </div>
+        </Card>
+      </form>
+
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Pendentes</div>
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: 18 }}>
+        {pendentes.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhuma conta pendente.</div>}
+        {pendentes.map((c) => (
+          <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+            <span style={{ flex: 1 }}>{c.descricao} {c.clienteNome ? `— ${c.clienteNome}` : ''}</span>
+            <span style={{ fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>venc. {new Date(c.vencimento).toLocaleDateString('pt-BR')}</span>
+            <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(c.valor)}</span>
+            <button onClick={() => onReceber(c.id)} style={{ ...btnGhostSolid, padding: '4px 10px', fontSize: 11.5 }}><Check size={12} /> Receber</button>
+            <button onClick={() => onDelete(c.id)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+          </div>
+        ))}
+      </Card>
+
+      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>Recebidas</div>
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        {recebidas.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhuma conta recebida ainda.</div>}
+        {recebidas.map((c) => (
+          <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, color: C.muted }}>
+            <span style={{ flex: 1, textDecoration: 'line-through' }}>{c.descricao}</span>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace" }}>{fmt(c.valor)}</span>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function ReceitasDespesasScreen({ financeiro, tipo }) {
+  const receitas = tipo === 'receitas';
+  const lista = financeiro.filter((f) => (receitas ? f.valor > 0 : f.valor < 0));
+  const total = lista.reduce((s, f) => s + Math.abs(f.valor), 0);
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>{receitas ? 'Receitas' : 'Despesas'}</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>{receitas ? 'Todas as entradas financeiras registradas.' : 'Todas as saídas financeiras registradas.'}</p>
+
+      <Card style={{ marginBottom: 16, maxWidth: 260 }}>
+        <span style={labelSm}>Total {receitas ? 'de receitas' : 'de despesas'}</span>
+        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 22, marginTop: 6, color: receitas ? C.accentDark : C.danger }}>{fmt(total)}</div>
+      </Card>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        {[...lista].reverse().map((f) => (
+          <div key={f.id} className="table-row" style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+            <span>{f.tipo}</span>
+            <span style={{ display: 'flex', gap: 14 }}>
+              <span style={{ color: C.muted, fontSize: 11.5, fontFamily: "'JetBrains Mono',monospace" }}>{hora(f.hora)}</span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: receitas ? C.accentDark : C.danger }}>{fmt(Math.abs(f.valor))}</span>
+            </span>
+          </div>
+        ))}
+        {lista.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum lançamento ainda.</div>}
+      </Card>
+    </div>
+  );
+}
+
+function SuprimentoScreen({ suprimentoInput, setSuprimentoInput, onConfirmar, historico }) {
+  return (
+    <div style={{ maxWidth: 460 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 20, margin: '0 0 4px' }}>Suprimento de Caixa</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Reforço de troco — adiciona dinheiro ao caixa durante o turno.</p>
+
+      <form onSubmit={onConfirmar}>
+        <Card style={{ marginBottom: 16 }}>
+          <label style={labelSm}>Valor a adicionar</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: C.bgLight, border: `1px solid ${C.borderLight}`, borderRadius: 9, padding: '10px 14px', marginBottom: 12, marginTop: 4 }}>
+            <span style={{ fontFamily: "'JetBrains Mono',monospace", color: C.muted }}>R$</span>
+            <input value={suprimentoInput.valor} onChange={(e) => setSuprimentoInput({ ...suprimentoInput, valor: e.target.value })} placeholder="0,00" inputMode="decimal"
+              style={{ border: 'none', background: 'transparent', outline: 'none', fontFamily: "'JetBrains Mono',monospace", fontSize: 17, fontWeight: 600, flex: 1 }} />
+          </div>
+          <label style={labelSm}>Motivo</label>
+          <input value={suprimentoInput.motivo} onChange={(e) => setSuprimentoInput({ ...suprimentoInput, motivo: e.target.value })} placeholder="Ex: reforço de troco" style={inputLightStyle} />
+          <button type="submit" style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16 }}><ArrowUpCircle size={15} /> Confirmar Suprimento</button>
+        </Card>
+      </form>
+
+      {historico.length > 0 && (
+        <Card style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '10px 16px', background: C.bgLight, fontWeight: 700, fontSize: 12.5 }}>Suprimentos deste turno</div>
+          {historico.map((s) => (
+            <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13 }}>
+              <div><div>{s.motivo}</div><div style={{ fontSize: 11, color: C.muted }}>{hora(s.hora)}</div></div>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: C.accentDark }}>+{fmt(s.valor)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function UsuariosScreen({ usuarios, operadorAtual, onToggleAtivo, onAlterarPerfil, onDelete }) {
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Usuários</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Novos usuários são criados pela tela de login ("Cadastre-se").</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ flex: 1 }}>Login</span>
+          <span style={{ width: 150 }}>Perfil</span>
+          <span style={{ width: 90 }}>Status</span>
+          <span style={{ width: 76, textAlign: 'right' }}>Ações</span>
+        </div>
+        {usuarios.map((u) => (
+          <div key={u.login} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
+            <span style={{ flex: 1, fontWeight: 500 }}>{u.login}{u.login === operadorAtual ? ' (você)' : ''}</span>
+            <span style={{ width: 150 }}>
+              <select value={u.perfil || 'Operador'} onChange={(e) => onAlterarPerfil(u.login, e.target.value)} style={{ border: `1px solid ${C.borderLight}`, borderRadius: 7, padding: '4px 6px', fontSize: 12 }}>
+                {PERFIS.map((p) => <option key={p.nome} value={p.nome}>{p.nome}</option>)}
+              </select>
+            </span>
+            <span style={{ width: 90 }}>
+              <button onClick={() => onToggleAtivo(u.login)} style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 99, border: 'none', cursor: 'pointer', background: u.ativo === false ? C.dangerBg : 'rgba(45,212,191,0.12)', color: u.ativo === false ? C.danger : C.accentDark }}>
+                {u.ativo === false ? 'Inativo' : 'Ativo'}
+              </button>
+            </span>
+            <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => onDelete(u.login)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+            </div>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
+function PerfisScreen({ usuarios }) {
+  return (
+    <div style={{ maxWidth: 720 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Perfis</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Níveis de acesso disponíveis no sistema.</p>
+
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14 }}>
+        {PERFIS.map((p) => {
+          const qtd = usuarios.filter((u) => (u.perfil || 'Operador') === p.nome).length;
+          return (
+            <Card key={p.nome}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <UserCog size={16} color={C.primaryDark} />
+                <span style={{ fontWeight: 700, fontSize: 14.5 }}>{p.nome}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 11, color: C.muted }}>{qtd} usuário(s)</span>
+              </div>
+              <p style={{ fontSize: 12.5, color: C.muted, margin: '0 0 10px' }}>{p.descricao}</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {p.permissoes.map((perm) => (
+                  <span key={perm} style={{ fontSize: 11, fontWeight: 600, background: C.primarySoft, color: C.primaryDark, borderRadius: 99, padding: '3px 9px' }}>{perm}</span>
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AuditoriaScreen({ auditoria }) {
+  return (
+    <div style={{ maxWidth: 780 }}>
+      <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Auditoria</h1>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Registro de ações sensíveis realizadas no sistema.</p>
+
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          <span style={{ width: 160 }}>Ação</span>
+          <span style={{ flex: 1 }}>Detalhe</span>
+          <span style={{ width: 90 }}>Operador</span>
+          <span style={{ width: 110, textAlign: 'right' }}>Data/Hora</span>
+        </div>
+        {[...auditoria].reverse().map((a) => (
+          <div key={a.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
+            <span style={{ width: 160, display: 'flex', alignItems: 'center', gap: 6 }}><ShieldCheck size={12} color={C.primaryDark} />{a.acao}</span>
+            <span style={{ flex: 1, color: C.muted }}>{a.detalhe}</span>
+            <span style={{ width: 90, color: C.muted }}>{a.operador}</span>
+            <span style={{ width: 110, textAlign: 'right', color: C.muted, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>{dataHora(a.hora)}</span>
+          </div>
+        ))}
+        {auditoria.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhum registro de auditoria ainda.</div>}
+      </Card>
     </div>
   );
 }
 
 // ---------- ESTILOS COMPARTILHADOS ----------
 const btnPrimary = {
-  display: 'inline-flex', alignItems: 'center', gap: 7, background: C.accent, color: C.bgDark, border: 'none',
-  borderRadius: 9, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif",
+  display: 'inline-flex', alignItems: 'center', gap: 7, background: C.primary, color: C.textLight, border: 'none',
+  borderRadius: 11, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif",
+  boxShadow: '0 4px 14px rgba(109,93,246,0.32)',
 };
 const btnDanger = {
   display: 'inline-flex', alignItems: 'center', gap: 7, background: C.danger, color: '#fff', border: 'none',
-  borderRadius: 9, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif",
+  borderRadius: 11, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif",
+  boxShadow: '0 4px 14px rgba(239,68,68,0.28)',
 };
 const btnGhost = {
   display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: C.muted, fontSize: 12.5, cursor: 'pointer', padding: 0, fontWeight: 600,
 };
 const btnGhostSolid = {
   display: 'inline-flex', alignItems: 'center', gap: 7, background: C.panel, color: C.textDark, border: `1px solid ${C.borderLight}`,
-  borderRadius: 9, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif",
+  borderRadius: 11, padding: '11px 18px', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans',sans-serif",
 };
 const qtyBtn = {
-  width: 20, height: 20, borderRadius: 5, border: `1px solid ${C.borderLight}`, background: C.bgLight, display: 'flex',
+  width: 22, height: 22, borderRadius: 7, border: `1px solid ${C.borderLight}`, background: C.bgLight, display: 'flex',
   alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: C.textDark, flexShrink: 0,
 };
 const iconBtn = {
-  width: 24, height: 24, borderRadius: 6, border: `1px solid ${C.borderLight}`, background: C.panel, display: 'flex',
+  width: 26, height: 26, borderRadius: 8, border: `1px solid ${C.borderLight}`, background: C.panel, display: 'flex',
   alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
 };
 const labelSm = { fontSize: 10.5, color: C.muted, display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 };
 const inputLightStyle = {
-  width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 8,
-  padding: '9px 12px', fontSize: 13.5, outline: 'none', fontFamily: "'Inter',sans-serif", marginTop: 2,
+  width: '100%', boxSizing: 'border-box', border: `1px solid ${C.borderLight}`, borderRadius: 10,
+  padding: '9px 12px', fontSize: 13.5, outline: 'none', fontFamily: "'Inter',sans-serif", marginTop: 2, background: C.panel,
 };
