@@ -151,6 +151,22 @@ const fmt = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency',
 const hora = (d) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const dataHora = (d) => new Date(d).toLocaleString('pt-BR');
 
+function gerarParcelas(valorTotal, vencimentoInicial, qtd) {
+  const grupoId = Date.now();
+  const n = Math.max(1, qtd || 1);
+  const base = Math.floor((valorTotal / n) * 100) / 100;
+  const parcelas = [];
+  let soma = 0;
+  for (let i = 0; i < n; i++) {
+    const valor = i === n - 1 ? Math.round((valorTotal - soma) * 100) / 100 : base;
+    soma += valor;
+    const venc = new Date(vencimentoInicial);
+    venc.setMonth(venc.getMonth() + i);
+    parcelas.push({ valor, vencimento: venc.getTime(), parcela: i + 1, totalParcelas: n, grupoId });
+  }
+  return parcelas;
+}
+
 // ---------- PIX (BR Code / EMV) ----------
 function sanitizePix(s) {
   return (s || '')
@@ -250,9 +266,37 @@ const CATEGORIAS_INICIAIS = [
   { id: 4, nome: 'Limpeza' },
 ];
 
-const PERFIS = [
-  { nome: 'Administrador', descricao: 'Acesso total: vendas, estoque, financeiro, usuários e configurações.', permissoes: ['Vendas', 'Estoque', 'Compras', 'Financeiro', 'Relatórios', 'Usuários', 'Configurações'] },
-  { nome: 'Operador', descricao: 'Acesso ao PDV, vendas e consulta de estoque — sem acesso a financeiro ou configurações.', permissoes: ['Vendas', 'Estoque (consulta)'] },
+const AREAS_SISTEMA = [
+  { key: 'dashboard', label: 'Dashboard' },
+  { key: 'pdv', label: 'PDV' },
+  { key: 'clientes', label: 'Clientes' },
+  { key: 'produtos', label: 'Produtos' },
+  { key: 'compras', label: 'Compras' },
+  { key: 'vendas', label: 'Vendas' },
+  { key: 'financeiro', label: 'Financeiro' },
+  { key: 'caixa', label: 'Caixa' },
+  { key: 'relatorios', label: 'Relatórios' },
+  { key: 'usuarios', label: 'Usuários' },
+  { key: 'configuracoes', label: 'Configurações' },
+];
+
+const SCREEN_AREA = {
+  dashboard: 'dashboard',
+  pdv: 'pdv', pagamento: 'pdv', cupom: 'pdv',
+  clientes: 'clientes',
+  produtos: 'produtos', categorias: 'produtos', estoqueVisao: 'produtos', movimentacoes: 'produtos', inventario: 'produtos',
+  novaCompra: 'compras', historicoCompras: 'compras', fornecedores: 'compras',
+  vendas: 'vendas', trocas: 'vendas', devolucoes: 'vendas', credario: 'vendas',
+  fluxoCaixa: 'financeiro', contasPagar: 'financeiro', contasReceber: 'financeiro', receitas: 'financeiro', despesas: 'financeiro',
+  abrirCaixa: 'caixa', sangria: 'caixa', suprimento: 'caixa', fecharCaixa: 'caixa',
+  relatorios: 'relatorios',
+  usuarios: 'usuarios', perfis: 'usuarios', auditoria: 'usuarios',
+  configuracoes: 'configuracoes',
+};
+
+const PERFIS_INICIAIS = [
+  { nome: 'Administrador', descricao: 'Acesso total a todas as áreas do sistema.', areasPermitidas: AREAS_SISTEMA.map((a) => a.key) },
+  { nome: 'Operador', descricao: 'Acesso ao dia a dia do caixa: PDV, vendas, clientes e caixa — sem estoque, compras, financeiro ou configurações.', areasPermitidas: ['dashboard', 'pdv', 'clientes', 'vendas', 'caixa'] },
 ];
 
 const FLOW = [
@@ -286,6 +330,7 @@ export default function App() {
   const [msgSucesso, setMsgSucesso] = useState('');
 
   const [usuarios, setUsuarios] = useState(USUARIOS_INICIAIS);
+  const [perfis, setPerfis] = useState(PERFIS_INICIAIS);
   const [authScreen, setAuthScreen] = useState('login'); // login | cadastro | esqueci
   const [cadastro, setCadastro] = useState({ login: '', senha: '', confirmar: '', pergunta: '', resposta: '' });
   const [esqueci, setEsqueci] = useState({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' });
@@ -431,6 +476,16 @@ export default function App() {
     setAuthScreen('login');
     setErro('');
     setScreen('login');
+  }
+
+  function alterarPermissaoPerfil(nomePerfil, area, permitido) {
+    setPerfis((prev) => prev.map((p) => {
+      if (p.nome !== nomePerfil) return p;
+      const areas = permitido ? [...new Set([...p.areasPermitidas, area])] : p.areasPermitidas.filter((a) => a !== area);
+      return { ...p, areasPermitidas: areas };
+    }));
+    showToast('Permissões atualizadas');
+    registrarAuditoria({ acao: 'Alteração de Permissão', detalhe: `${nomePerfil}: ${area} ${permitido ? 'liberado' : 'bloqueado'}` });
   }
 
   function handleCadastro(e) {
@@ -607,7 +662,7 @@ export default function App() {
       setClientes((prev) => prev.map((c) => (c.id === cliente.id ? { ...c, saldoDevedor: (c.saldoDevedor || 0) + totalComDesconto } : c)));
       setContasReceber((prev) => [
         ...prev,
-        { id: prev.length + 1, descricao: `Credário — Venda #${numero}`, clienteId: cliente.id, clienteNome: cliente.nome, valor: totalComDesconto, vencimento: Date.now() + 30 * 86400000, recebido: false, dataRecebimento: null, origemVenda: numero },
+        { id: prev.length ? Math.max(...prev.map((c) => c.id)) + 1 : 1, descricao: `Credário — Venda #${numero}`, clienteId: cliente.id, clienteNome: cliente.nome, valor: totalComDesconto, vencimento: Date.now() + 30 * 86400000, recebido: false, dataRecebimento: null, origemVenda: numero },
       ]);
     } else {
       // Registrar financeiro (vendas à vista)
@@ -836,9 +891,14 @@ export default function App() {
   }
 
   // ---------- Contas a pagar / receber ----------
-  function adicionarContaPagar(c) {
-    setContasPagar((prev) => [...prev, { id: prev.length + 1, pago: false, dataPagamento: null, ...c }]);
-    showToast('Conta a pagar cadastrada');
+  function adicionarContaPagar({ descricao, fornecedorId, fornecedorNome, valorTotal, vencimentoInicial, qtdParcelas }) {
+    const parcelas = gerarParcelas(valorTotal, vencimentoInicial, qtdParcelas);
+    setContasPagar((prev) => {
+      let nextId = prev.length ? Math.max(...prev.map((c) => c.id)) + 1 : 1;
+      const novas = parcelas.map((p) => ({ id: nextId++, descricao, fornecedorId, fornecedorNome, pago: false, dataPagamento: null, ...p }));
+      return [...prev, ...novas];
+    });
+    showToast(parcelas.length > 1 ? `${parcelas.length} parcelas cadastradas` : 'Conta a pagar cadastrada');
   }
   function pagarConta(id) {
     const conta = contasPagar.find((c) => c.id === id);
@@ -851,9 +911,17 @@ export default function App() {
     setContasPagar((prev) => prev.filter((c) => c.id !== id));
   }
 
-  function adicionarContaReceber(c) {
-    setContasReceber((prev) => [...prev, { id: prev.length + 1, recebido: false, dataRecebimento: null, ...c }]);
-    showToast('Conta a receber cadastrada');
+  function adicionarContaReceber({ descricao, clienteId, clienteNome, valorTotal, vencimentoInicial, qtdParcelas }) {
+    const parcelas = gerarParcelas(valorTotal, vencimentoInicial, qtdParcelas);
+    setContasReceber((prev) => {
+      let nextId = prev.length ? Math.max(...prev.map((c) => c.id)) + 1 : 1;
+      const novas = parcelas.map((p) => ({ id: nextId++, descricao, clienteId, clienteNome, recebido: false, dataRecebimento: null, ...p }));
+      return [...prev, ...novas];
+    });
+    if (clienteId) {
+      setClientes((prev) => prev.map((cl) => (cl.id === clienteId ? { ...cl, saldoDevedor: (cl.saldoDevedor || 0) + valorTotal } : cl)));
+    }
+    showToast(parcelas.length > 1 ? `${parcelas.length} parcelas cadastradas` : 'Conta a receber cadastrada');
   }
   function receberConta(id) {
     const conta = contasReceber.find((c) => c.id === id);
@@ -1143,11 +1211,18 @@ export default function App() {
   }
 
   // ---------- SHELL (post-login) ----------
+  const usuarioAtual = usuarios.find((u) => u.login === operador);
+  const perfilAtual = perfis.find((p) => p.nome === (usuarioAtual?.perfil || 'Operador')) || perfis[perfis.length - 1];
+  const areasPermitidas = perfilAtual ? perfilAtual.areasPermitidas : [];
+  const temPermissao = (area) => areasPermitidas.includes(area);
+  const telaPermitida = !SCREEN_AREA[screen] || temPermissao(SCREEN_AREA[screen]);
+
   const navItemsTop = [
     { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { key: 'pdv', label: 'PDV', icon: ShoppingCart, disabled: !caixa.aberto },
-  ];
+  ].filter((i) => temPermissao(SCREEN_AREA[i.key]));
   const clienteItem = { key: 'clientes', label: 'Clientes', icon: Users };
+  const mostrarClientes = temPermissao('clientes');
 
   const alertasEstoqueCount = produtos.filter((p) => p.estoque <= (p.estoqueMinimo ?? 10)).length;
   const contasPagarPendentesCount = contasPagar.filter((c) => !c.pago).length;
@@ -1201,15 +1276,15 @@ export default function App() {
   }));
 
   const grupos = [
-    { key: 'grp-produtos', label: 'Produtos', Icon: Package, aberto: grupoProdutosAberto, setAberto: setGrupoProdutosAberto, itens: produtosItems },
-    { key: 'grp-compras', label: 'Compras', Icon: ShoppingBag, aberto: grupoComprasAberto, setAberto: setGrupoComprasAberto, itens: comprasItems },
-    { key: 'grp-vendas', label: 'Vendas', Icon: Receipt, aberto: grupoVendasAberto, setAberto: setGrupoVendasAberto, itens: vendasItems },
-    { key: 'grp-financeiro', label: 'Financeiro', Icon: TrendingUp, aberto: grupoFinanceiroAberto, setAberto: setGrupoFinanceiroAberto, itens: financeiroItems },
-    { key: 'grp-caixa', label: 'Caixa', Icon: Wallet, aberto: grupoCaixaAberto, setAberto: setGrupoCaixaAberto, itens: caixaItems },
-    { key: 'grp-relatorios', label: 'Relatórios', Icon: BarChart3, aberto: grupoRelatoriosAberto, setAberto: setGrupoRelatoriosAberto, itens: relatoriosItems },
-    { key: 'grp-usuarios', label: 'Usuários', Icon: UserCog, aberto: grupoUsuariosAberto, setAberto: setGrupoUsuariosAberto, itens: usuariosItems },
-    { key: 'grp-config', label: 'Configurações', Icon: Cog, aberto: grupoConfigAberto, setAberto: setGrupoConfigAberto, itens: configItems },
-  ];
+    { key: 'grp-produtos', area: 'produtos', label: 'Produtos', Icon: Package, aberto: grupoProdutosAberto, setAberto: setGrupoProdutosAberto, itens: produtosItems },
+    { key: 'grp-compras', area: 'compras', label: 'Compras', Icon: ShoppingBag, aberto: grupoComprasAberto, setAberto: setGrupoComprasAberto, itens: comprasItems },
+    { key: 'grp-vendas', area: 'vendas', label: 'Vendas', Icon: Receipt, aberto: grupoVendasAberto, setAberto: setGrupoVendasAberto, itens: vendasItems },
+    { key: 'grp-financeiro', area: 'financeiro', label: 'Financeiro', Icon: TrendingUp, aberto: grupoFinanceiroAberto, setAberto: setGrupoFinanceiroAberto, itens: financeiroItems },
+    { key: 'grp-caixa', area: 'caixa', label: 'Caixa', Icon: Wallet, aberto: grupoCaixaAberto, setAberto: setGrupoCaixaAberto, itens: caixaItems },
+    { key: 'grp-relatorios', area: 'relatorios', label: 'Relatórios', Icon: BarChart3, aberto: grupoRelatoriosAberto, setAberto: setGrupoRelatoriosAberto, itens: relatoriosItems },
+    { key: 'grp-usuarios', area: 'usuarios', label: 'Usuários', Icon: UserCog, aberto: grupoUsuariosAberto, setAberto: setGrupoUsuariosAberto, itens: usuariosItems },
+    { key: 'grp-config', area: 'configuracoes', label: 'Configurações', Icon: Cog, aberto: grupoConfigAberto, setAberto: setGrupoConfigAberto, itens: configItems },
+  ].filter((g) => temPermissao(g.area));
   const gruposAtivos = grupos.map((g) => ({ ...g, ativo: g.itens.some((i) => (i.isActive ? i.isActive() : screen === i.key)) }));
 
   function renderNavBtn(item) {
@@ -1312,7 +1387,7 @@ export default function App() {
 
         <div className="scroll-thin" style={{ flex: 1, padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2, overflow: 'auto' }}>
           {navItemsTop.map(renderNavBtn)}
-          {renderNavBtn(clienteItem)}
+          {mostrarClientes && renderNavBtn(clienteItem)}
 
           <div style={{ height: 1, background: C.borderLight, margin: '6px 2px' }} />
 
@@ -1379,6 +1454,10 @@ export default function App() {
             </div>
           )}
 
+          {!telaPermitida ? (
+            <AccessDeniedScreen area={SCREEN_AREA[screen]} perfil={perfilAtual?.nome} onVoltar={() => setScreen('dashboard')} />
+          ) : (
+          <>
           {screen === 'dashboard' && (
             <Dashboard
               caixa={caixa} valorEsperadoCaixa={valorEsperadoCaixa} vendasDoTurno={vendasDoTurno}
@@ -1484,11 +1563,13 @@ export default function App() {
 
           {screen === 'despesas' && <ReceitasDespesasScreen financeiro={financeiro} tipo="despesas" />}
 
-          {screen === 'usuarios' && <UsuariosScreen usuarios={usuarios} operadorAtual={operador} onToggleAtivo={alternarAtivoUsuario} onAlterarPerfil={alterarPerfilUsuario} onDelete={excluirUsuario} />}
+          {screen === 'usuarios' && <UsuariosScreen usuarios={usuarios} perfis={perfis} operadorAtual={operador} onToggleAtivo={alternarAtivoUsuario} onAlterarPerfil={alterarPerfilUsuario} onDelete={excluirUsuario} />}
 
-          {screen === 'perfis' && <PerfisScreen usuarios={usuarios} />}
+          {screen === 'perfis' && <PerfisScreen usuarios={usuarios} perfis={perfis} onAlterarPermissao={alterarPermissaoPerfil} />}
 
           {screen === 'auditoria' && <AuditoriaScreen auditoria={auditoria} />}
+          </>
+          )}
         </div>
       </div>
 
@@ -1498,6 +1579,22 @@ export default function App() {
 }
 
 // ---------- SUBCOMPONENTES ----------
+
+function AccessDeniedScreen({ area, perfil, onVoltar }) {
+  const label = AREAS_SISTEMA.find((a) => a.key === area)?.label || area;
+  return (
+    <div style={{ maxWidth: 440, textAlign: 'center', margin: '60px auto 0' }}>
+      <div style={{ width: 52, height: 52, borderRadius: 14, background: C.dangerBg, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+        <ShieldCheck size={24} color={C.danger} />
+      </div>
+      <h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 17, margin: '0 0 6px' }}>Acesso restrito</h2>
+      <p style={{ color: C.muted, fontSize: 13, margin: '0 0 18px' }}>
+        O perfil <strong>{perfil}</strong> não tem permissão para acessar <strong>{label}</strong>. Fale com um administrador para liberar essa área em Usuários → Perfis.
+      </p>
+      <button onClick={onVoltar} style={btnPrimary}><LayoutDashboard size={15} /> Voltar ao Dashboard</button>
+    </div>
+  );
+}
 
 function Toast({ toast }) {
   if (!toast) return null;
@@ -3841,7 +3938,7 @@ function CredarioScreen({ clientes, contasReceber, onReceber }) {
 }
 
 function ContasPagarScreen({ contas, fornecedores, onAdd, onPagar, onDelete }) {
-  const [novo, setNovo] = useState({ descricao: '', fornecedorId: '', valor: '', vencimento: '' });
+  const [novo, setNovo] = useState({ descricao: '', fornecedorId: '', valor: '', vencimento: '', parcelas: '1' });
   const pendentes = contas.filter((c) => !c.pago);
   const pagas = contas.filter((c) => c.pago);
 
@@ -3850,8 +3947,9 @@ function ContasPagarScreen({ contas, fornecedores, onAdd, onPagar, onDelete }) {
     const valor = parseFloat(String(novo.valor).replace(',', '.'));
     if (!novo.descricao.trim() || isNaN(valor) || valor <= 0 || !novo.vencimento) return;
     const fornecedor = fornecedores.find((f) => f.id === Number(novo.fornecedorId));
-    onAdd({ descricao: novo.descricao.trim(), fornecedorId: fornecedor ? fornecedor.id : null, fornecedorNome: fornecedor ? fornecedor.nome : null, valor, vencimento: new Date(novo.vencimento).getTime() });
-    setNovo({ descricao: '', fornecedorId: '', valor: '', vencimento: '' });
+    const qtdParcelas = Math.min(48, Math.max(1, parseInt(novo.parcelas, 10) || 1));
+    onAdd({ descricao: novo.descricao.trim(), fornecedorId: fornecedor ? fornecedor.id : null, fornecedorNome: fornecedor ? fornecedor.nome : null, valorTotal: valor, vencimentoInicial: new Date(novo.vencimento + 'T12:00:00').getTime(), qtdParcelas });
+    setNovo({ descricao: '', fornecedorId: '', valor: '', vencimento: '', parcelas: '1' });
   }
 
   return (
@@ -3861,7 +3959,7 @@ function ContasPagarScreen({ contas, fornecedores, onAdd, onPagar, onDelete }) {
 
       <form onSubmit={submit}>
         <Card style={{ marginBottom: 18 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 0.7fr 1fr auto', gap: 10, alignItems: 'end' }}>
             <div><label style={labelSm}>Descrição</label><input value={novo.descricao} onChange={(e) => setNovo({ ...novo, descricao: e.target.value })} placeholder="Ex: Aluguel, energia..." style={inputLightStyle} /></div>
             <div><label style={labelSm}>Fornecedor (opcional)</label>
               <select value={novo.fornecedorId} onChange={(e) => setNovo({ ...novo, fornecedorId: e.target.value })} style={inputLightStyle}>
@@ -3869,8 +3967,9 @@ function ContasPagarScreen({ contas, fornecedores, onAdd, onPagar, onDelete }) {
                 {fornecedores.map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
               </select>
             </div>
-            <div><label style={labelSm}>Valor (R$)</label><input value={novo.valor} onChange={(e) => setNovo({ ...novo, valor: e.target.value })} inputMode="decimal" placeholder="0,00" style={inputLightStyle} /></div>
-            <div><label style={labelSm}>Vencimento</label><input type="date" value={novo.vencimento} onChange={(e) => setNovo({ ...novo, vencimento: e.target.value })} style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Valor total (R$)</label><input value={novo.valor} onChange={(e) => setNovo({ ...novo, valor: e.target.value })} inputMode="decimal" placeholder="0,00" style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Parcelas</label><input value={novo.parcelas} onChange={(e) => setNovo({ ...novo, parcelas: e.target.value })} inputMode="numeric" style={inputLightStyle} /></div>
+            <div><label style={labelSm}>1º vencimento</label><input type="date" value={novo.vencimento} onChange={(e) => setNovo({ ...novo, vencimento: e.target.value })} style={inputLightStyle} /></div>
             <button type="submit" style={{ ...btnPrimary, height: 33 }}><Plus size={14} /> Adicionar</button>
           </div>
         </Card>
@@ -3881,7 +3980,7 @@ function ContasPagarScreen({ contas, fornecedores, onAdd, onPagar, onDelete }) {
         {pendentes.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhuma conta pendente.</div>}
         {pendentes.map((c) => (
           <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
-            <span style={{ flex: 1 }}>{c.descricao} {c.fornecedorNome ? `— ${c.fornecedorNome}` : ''}</span>
+            <span style={{ flex: 1 }}>{c.descricao} {c.totalParcelas > 1 ? <span style={{ fontSize: 10.5, fontWeight: 700, background: C.primarySoft, color: C.primaryDark, borderRadius: 99, padding: '2px 7px', marginLeft: 4 }}>{c.parcela}/{c.totalParcelas}</span> : null} {c.fornecedorNome ? `— ${c.fornecedorNome}` : ''}</span>
             <span style={{ fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>venc. {new Date(c.vencimento).toLocaleDateString('pt-BR')}</span>
             <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(c.valor)}</span>
             <button onClick={() => onPagar(c.id)} style={{ ...btnGhostSolid, padding: '4px 10px', fontSize: 11.5 }}><Check size={12} /> Pagar</button>
@@ -3905,7 +4004,7 @@ function ContasPagarScreen({ contas, fornecedores, onAdd, onPagar, onDelete }) {
 }
 
 function ContasReceberScreen({ contas, clientes, onAdd, onReceber, onDelete }) {
-  const [novo, setNovo] = useState({ descricao: '', clienteId: '', valor: '', vencimento: '' });
+  const [novo, setNovo] = useState({ descricao: '', clienteId: '', valor: '', vencimento: '', parcelas: '1' });
   const pendentes = contas.filter((c) => !c.recebido);
   const recebidas = contas.filter((c) => c.recebido);
 
@@ -3914,8 +4013,9 @@ function ContasReceberScreen({ contas, clientes, onAdd, onReceber, onDelete }) {
     const valor = parseFloat(String(novo.valor).replace(',', '.'));
     if (!novo.descricao.trim() || isNaN(valor) || valor <= 0 || !novo.vencimento) return;
     const cliente = clientes.find((c) => c.id === Number(novo.clienteId));
-    onAdd({ descricao: novo.descricao.trim(), clienteId: cliente ? cliente.id : null, clienteNome: cliente ? cliente.nome : null, valor, vencimento: new Date(novo.vencimento).getTime() });
-    setNovo({ descricao: '', clienteId: '', valor: '', vencimento: '' });
+    const qtdParcelas = Math.min(48, Math.max(1, parseInt(novo.parcelas, 10) || 1));
+    onAdd({ descricao: novo.descricao.trim(), clienteId: cliente ? cliente.id : null, clienteNome: cliente ? cliente.nome : null, valorTotal: valor, vencimentoInicial: new Date(novo.vencimento + 'T12:00:00').getTime(), qtdParcelas });
+    setNovo({ descricao: '', clienteId: '', valor: '', vencimento: '', parcelas: '1' });
   }
 
   return (
@@ -3925,7 +4025,7 @@ function ContasReceberScreen({ contas, clientes, onAdd, onReceber, onDelete }) {
 
       <form onSubmit={submit}>
         <Card style={{ marginBottom: 18 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1.2fr 1fr 0.7fr 1fr auto', gap: 10, alignItems: 'end' }}>
             <div><label style={labelSm}>Descrição</label><input value={novo.descricao} onChange={(e) => setNovo({ ...novo, descricao: e.target.value })} placeholder="Ex: Venda avulsa a prazo..." style={inputLightStyle} /></div>
             <div><label style={labelSm}>Cliente (opcional)</label>
               <select value={novo.clienteId} onChange={(e) => setNovo({ ...novo, clienteId: e.target.value })} style={inputLightStyle}>
@@ -3933,8 +4033,9 @@ function ContasReceberScreen({ contas, clientes, onAdd, onReceber, onDelete }) {
                 {clientes.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>
             </div>
-            <div><label style={labelSm}>Valor (R$)</label><input value={novo.valor} onChange={(e) => setNovo({ ...novo, valor: e.target.value })} inputMode="decimal" placeholder="0,00" style={inputLightStyle} /></div>
-            <div><label style={labelSm}>Vencimento</label><input type="date" value={novo.vencimento} onChange={(e) => setNovo({ ...novo, vencimento: e.target.value })} style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Valor total (R$)</label><input value={novo.valor} onChange={(e) => setNovo({ ...novo, valor: e.target.value })} inputMode="decimal" placeholder="0,00" style={inputLightStyle} /></div>
+            <div><label style={labelSm}>Parcelas</label><input value={novo.parcelas} onChange={(e) => setNovo({ ...novo, parcelas: e.target.value })} inputMode="numeric" style={inputLightStyle} /></div>
+            <div><label style={labelSm}>1º vencimento</label><input type="date" value={novo.vencimento} onChange={(e) => setNovo({ ...novo, vencimento: e.target.value })} style={inputLightStyle} /></div>
             <button type="submit" style={{ ...btnPrimary, height: 33 }}><Plus size={14} /> Adicionar</button>
           </div>
         </Card>
@@ -3945,7 +4046,7 @@ function ContasReceberScreen({ contas, clientes, onAdd, onReceber, onDelete }) {
         {pendentes.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: C.muted, fontSize: 12.5 }}>Nenhuma conta pendente.</div>}
         {pendentes.map((c) => (
           <div key={c.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
-            <span style={{ flex: 1 }}>{c.descricao} {c.clienteNome ? `— ${c.clienteNome}` : ''}</span>
+            <span style={{ flex: 1 }}>{c.descricao} {c.totalParcelas > 1 ? <span style={{ fontSize: 10.5, fontWeight: 700, background: C.primarySoft, color: C.primaryDark, borderRadius: 99, padding: '2px 7px', marginLeft: 4 }}>{c.parcela}/{c.totalParcelas}</span> : null} {c.clienteNome ? `— ${c.clienteNome}` : ''}</span>
             <span style={{ fontSize: 11.5, color: C.muted, fontFamily: "'JetBrains Mono',monospace" }}>venc. {new Date(c.vencimento).toLocaleDateString('pt-BR')}</span>
             <span style={{ width: 90, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{fmt(c.valor)}</span>
             <button onClick={() => onReceber(c.id)} style={{ ...btnGhostSolid, padding: '4px 10px', fontSize: 11.5 }}><Check size={12} /> Receber</button>
@@ -4034,11 +4135,11 @@ function SuprimentoScreen({ suprimentoInput, setSuprimentoInput, onConfirmar, hi
   );
 }
 
-function UsuariosScreen({ usuarios, operadorAtual, onToggleAtivo, onAlterarPerfil, onDelete }) {
+function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlterarPerfil, onDelete }) {
   return (
     <div style={{ maxWidth: 720 }}>
       <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Usuários</h1>
-      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Novos usuários são criados pela tela de login ("Cadastre-se").</p>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Novos usuários são criados pela tela de login ("Cadastre-se"). O perfil define quais áreas cada um acessa — ajuste em <strong>Perfis</strong>.</p>
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
@@ -4052,7 +4153,7 @@ function UsuariosScreen({ usuarios, operadorAtual, onToggleAtivo, onAlterarPerfi
             <span style={{ flex: 1, fontWeight: 500 }}>{u.login}{u.login === operadorAtual ? ' (você)' : ''}</span>
             <span style={{ width: 150 }}>
               <select value={u.perfil || 'Operador'} onChange={(e) => onAlterarPerfil(u.login, e.target.value)} style={{ border: `1px solid ${C.borderLight}`, borderRadius: 7, padding: '4px 6px', fontSize: 12 }}>
-                {PERFIS.map((p) => <option key={p.nome} value={p.nome}>{p.nome}</option>)}
+                {perfis.map((p) => <option key={p.nome} value={p.nome}>{p.nome}</option>)}
               </select>
             </span>
             <span style={{ width: 90 }}>
@@ -4070,14 +4171,14 @@ function UsuariosScreen({ usuarios, operadorAtual, onToggleAtivo, onAlterarPerfi
   );
 }
 
-function PerfisScreen({ usuarios }) {
+function PerfisScreen({ usuarios, perfis, onAlterarPermissao }) {
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div style={{ maxWidth: 820 }}>
       <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Perfis</h1>
-      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Níveis de acesso disponíveis no sistema.</p>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Marque as áreas que cada perfil pode acessar. A mudança vale para todos os usuários daquele perfil, na hora.</p>
 
       <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14 }}>
-        {PERFIS.map((p) => {
+        {perfis.map((p) => {
           const qtd = usuarios.filter((u) => (u.perfil || 'Operador') === p.nome).length;
           return (
             <Card key={p.nome}>
@@ -4086,11 +4187,17 @@ function PerfisScreen({ usuarios }) {
                 <span style={{ fontWeight: 700, fontSize: 14.5 }}>{p.nome}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: C.muted }}>{qtd} usuário(s)</span>
               </div>
-              <p style={{ fontSize: 12.5, color: C.muted, margin: '0 0 10px' }}>{p.descricao}</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {p.permissoes.map((perm) => (
-                  <span key={perm} style={{ fontSize: 11, fontWeight: 600, background: C.primarySoft, color: C.primaryDark, borderRadius: 99, padding: '3px 9px' }}>{perm}</span>
-                ))}
+              <p style={{ fontSize: 12.5, color: C.muted, margin: '0 0 12px' }}>{p.descricao}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px' }}>
+                {AREAS_SISTEMA.map((area) => {
+                  const permitido = p.areasPermitidas.includes(area.key);
+                  return (
+                    <label key={area.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, cursor: 'pointer', padding: '4px 0' }}>
+                      <input type="checkbox" checked={permitido} onChange={(e) => onAlterarPermissao(p.nome, area.key, e.target.checked)} />
+                      {area.label}
+                    </label>
+                  );
+                })}
               </div>
             </Card>
           );
