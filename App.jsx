@@ -306,6 +306,68 @@ const FLOW = [
   { key: 'cupom', label: 'Cupom' },
 ];
 
+const CONFIG_PADRAO = {
+  nomeLoja: 'Minha Loja',
+  cnpj: '',
+  endereco: '',
+  mensagemRodape: 'Obrigado pela preferência, volte sempre!',
+  larguraCupom: '58mm',
+  chavePix: '',
+  nomeRecebedorPix: 'Minha Loja',
+  cidadeRecebedorPix: 'SAO PAULO',
+  formasAceitas: { Dinheiro: true, 'Cartão Débito': true, 'Cartão Crédito': true, Pix: true, Credário: true },
+};
+
+// ---------- PERSISTÊNCIA (localStorage + nuvem opcional via Supabase) ----------
+const STORE_KEY = 'pdv:estado:v1';
+const SESSAO_KEY = 'pdv:sessao:v1';
+const DEVICE_KEY = 'pdv:device:v1';
+const CLOUD_URL = import.meta.env.VITE_SUPABASE_URL;
+const CLOUD_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const CLOUD_ID = import.meta.env.VITE_PDV_STORE_ID || 'loja-principal';
+const CLOUD_ATIVA = !!(CLOUD_URL && CLOUD_KEY);
+
+function lerEstadoLocal() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+const SALVO = lerEstadoLocal();
+const SESSAO0 = (() => { try { return localStorage.getItem(SESSAO_KEY); } catch { return null; } })();
+
+function obterDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = `dev-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch {
+    return `dev-${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+// ---------- SENHAS (PBKDF2 via Web Crypto) ----------
+function bufParaHex(buf) {
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function novoSalt() {
+  const a = new Uint8Array(16);
+  crypto.getRandomValues(a);
+  return bufParaHex(a);
+}
+async function derivarHash(texto, salt) {
+  const enc = new TextEncoder();
+  const chave = await crypto.subtle.importKey('raw', enc.encode(texto), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations: 100000 }, chave, 256);
+  return bufParaHex(bits);
+}
+const normResposta = (r) => `resp:${(r || '').trim().toLowerCase()}`;
+
 export default function App() {
   const [relogio, setRelogio] = useState(new Date());
   useEffect(() => {
@@ -323,41 +385,41 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const [screen, setScreen] = useState('login');
+  const [screen, setScreen] = useState(SESSAO0 ? 'dashboard' : 'login');
   const [usuario, setUsuario] = useState({ login: '', senha: '' });
-  const [operador, setOperador] = useState(null);
+  const [operador, setOperador] = useState(SESSAO0 || null);
   const [erro, setErro] = useState('');
   const [msgSucesso, setMsgSucesso] = useState('');
 
-  const [usuarios, setUsuarios] = useState(USUARIOS_INICIAIS);
-  const [perfis, setPerfis] = useState(PERFIS_INICIAIS);
+  const [usuarios, setUsuarios] = useState(SALVO.usuarios ?? USUARIOS_INICIAIS);
+  const [perfis, setPerfis] = useState(SALVO.perfis ?? PERFIS_INICIAIS);
   const [authScreen, setAuthScreen] = useState('login'); // login | cadastro | esqueci
   const [cadastro, setCadastro] = useState({ login: '', senha: '', confirmar: '', pergunta: '', resposta: '' });
   const [esqueci, setEsqueci] = useState({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' });
 
-  const [produtos, setProdutos] = useState(PRODUTOS_INICIAIS);
+  const [produtos, setProdutos] = useState(SALVO.produtos ?? PRODUTOS_INICIAIS);
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState([]);
 
-  const [caixa, setCaixa] = useState({ aberto: false, valorAbertura: 0, dataAbertura: null, operador: null });
+  const [caixa, setCaixa] = useState(SALVO.caixa ?? { aberto: false, valorAbertura: 0, dataAbertura: null, operador: null });
   const [valorAberturaInput, setValorAberturaInput] = useState('');
 
   const [pagamento, setPagamento] = useState({ forma: null, valorRecebido: '', desconto: '', clienteId: '' });
-  const [vendas, setVendas] = useState([]);
+  const [vendas, setVendas] = useState(SALVO.vendas ?? []);
   const [ultimaVenda, setUltimaVenda] = useState(null);
-  const [financeiro, setFinanceiro] = useState([]);
-  const [sangrias, setSangrias] = useState([]);
-  const [suprimentos, setSuprimentos] = useState([]);
-  const [fornecedores, setFornecedores] = useState(FORNECEDORES_INICIAIS);
-  const [compras, setCompras] = useState([]);
-  const [movimentos, setMovimentos] = useState([]);
-  const [categorias, setCategorias] = useState(CATEGORIAS_INICIAIS);
-  const [clientes, setClientes] = useState([]);
-  const [trocas, setTrocas] = useState([]);
-  const [devolucoes, setDevolucoes] = useState([]);
-  const [contasPagar, setContasPagar] = useState([]);
-  const [contasReceber, setContasReceber] = useState([]);
-  const [auditoria, setAuditoria] = useState([]);
+  const [financeiro, setFinanceiro] = useState(SALVO.financeiro ?? []);
+  const [sangrias, setSangrias] = useState(SALVO.sangrias ?? []);
+  const [suprimentos, setSuprimentos] = useState(SALVO.suprimentos ?? []);
+  const [fornecedores, setFornecedores] = useState(SALVO.fornecedores ?? FORNECEDORES_INICIAIS);
+  const [compras, setCompras] = useState(SALVO.compras ?? []);
+  const [movimentos, setMovimentos] = useState(SALVO.movimentos ?? []);
+  const [categorias, setCategorias] = useState(SALVO.categorias ?? CATEGORIAS_INICIAIS);
+  const [clientes, setClientes] = useState(SALVO.clientes ?? []);
+  const [trocas, setTrocas] = useState(SALVO.trocas ?? []);
+  const [devolucoes, setDevolucoes] = useState(SALVO.devolucoes ?? []);
+  const [contasPagar, setContasPagar] = useState(SALVO.contasPagar ?? []);
+  const [contasReceber, setContasReceber] = useState(SALVO.contasReceber ?? []);
+  const [auditoria, setAuditoria] = useState(SALVO.auditoria ?? []);
 
   const [grupoProdutosAberto, setGrupoProdutosAberto] = useState(true);
   const [grupoComprasAberto, setGrupoComprasAberto] = useState(false);
@@ -369,22 +431,15 @@ export default function App() {
   const [grupoConfigAberto, setGrupoConfigAberto] = useState(false);
 
   const [contagemFechamento, setContagemFechamento] = useState('');
-  const [ultimoFechamento, setUltimoFechamento] = useState(null);
+  const [ultimoFechamento, setUltimoFechamento] = useState(SALVO.ultimoFechamento ?? null);
   const [suprimentoInput, setSuprimentoInput] = useState({ valor: '', motivo: '' });
   const [relatoriosAba, setRelatoriosAba] = useState('Vendas');
   const [configAba, setConfigAba] = useState('Empresa');
 
   const [sangriaInput, setSangriaInput] = useState({ valor: '', motivo: '' });
   const [config, setConfig] = useState({
-    nomeLoja: 'Minha Loja',
-    cnpj: '',
-    endereco: '',
-    mensagemRodape: 'Obrigado pela preferência, volte sempre!',
-    larguraCupom: '58mm',
-    chavePix: '',
-    nomeRecebedorPix: 'Minha Loja',
-    cidadeRecebedorPix: 'SAO PAULO',
-    formasAceitas: { Dinheiro: true, 'Cartão Débito': true, 'Cartão Crédito': true, Pix: true, Credário: true },
+    ...CONFIG_PADRAO,
+    ...(SALVO.config || {}),
   });
 
   const totalCarrinho = useMemo(
@@ -447,7 +502,7 @@ export default function App() {
     }
   }
 
-  function handleLogin(e) {
+  async function handleLogin(e) {
     e.preventDefault();
     const login = usuario.login.trim();
     if (!login || !usuario.senha.trim()) {
@@ -455,7 +510,18 @@ export default function App() {
       return;
     }
     const user = usuarios.find((u) => u.login.toLowerCase() === login.toLowerCase());
-    if (!user || user.senha !== usuario.senha) {
+    let senhaOk = false;
+    if (user) {
+      try {
+        senhaOk = user.senhaHash
+          ? (await derivarHash(usuario.senha, user.salt)) === user.senhaHash
+          : user.senha === usuario.senha; // legado (migrado automaticamente em seguida)
+      } catch {
+        setErro('Este navegador não suporta a verificação segura de senha. Use HTTPS ou um navegador atualizado.');
+        return;
+      }
+    }
+    if (!user || !senhaOk) {
       setErro('Usuário ou senha inválidos.');
       return;
     }
@@ -463,6 +529,7 @@ export default function App() {
       setErro('Este usuário está inativo. Contate um administrador.');
       return;
     }
+    try { localStorage.setItem(SESSAO_KEY, user.login); } catch { /* ignora */ }
     setOperador(user.login);
     setErro('');
     setMsgSucesso('');
@@ -471,6 +538,7 @@ export default function App() {
   }
 
   function handleLogout() {
+    try { localStorage.removeItem(SESSAO_KEY); } catch { /* ignora */ }
     setOperador(null);
     setUsuario({ login: '', senha: '' });
     setAuthScreen('login');
@@ -488,7 +556,7 @@ export default function App() {
     registrarAuditoria({ acao: 'Alteração de Permissão', detalhe: `${nomePerfil}: ${area} ${permitido ? 'liberado' : 'bloqueado'}` });
   }
 
-  function handleCadastro(e) {
+  async function handleCadastro(e) {
     e.preventDefault();
     const { login, senha, confirmar, pergunta, resposta } = cadastro;
     if (!login.trim() || !senha.trim() || !pergunta.trim() || !resposta.trim()) {
@@ -507,7 +575,16 @@ export default function App() {
       setErro('Já existe um usuário com esse login.');
       return;
     }
-    setUsuarios((prev) => [...prev, { login: login.trim(), senha, pergunta: pergunta.trim(), resposta: resposta.trim(), perfil: 'Operador', ativo: true }]);
+    let salt, senhaHash, respostaHash;
+    try {
+      salt = novoSalt();
+      senhaHash = await derivarHash(senha, salt);
+      respostaHash = await derivarHash(normResposta(resposta), salt);
+    } catch {
+      setErro('Este navegador não suporta o cadastro seguro de senha. Use HTTPS ou um navegador atualizado.');
+      return;
+    }
+    setUsuarios((prev) => [...prev, { login: login.trim(), salt, senhaHash, pergunta: pergunta.trim(), respostaHash, perfil: 'Operador', ativo: true }]);
     setCadastro({ login: '', senha: '', confirmar: '', pergunta: '', resposta: '' });
     setErro('');
     setMsgSucesso('Cadastro realizado com sucesso. Faça login.');
@@ -525,7 +602,7 @@ export default function App() {
     setEsqueci((prev) => ({ ...prev, etapa: 2, perguntaEncontrada: user.pergunta }));
   }
 
-  function handleEsqueciConfirmar(e) {
+  async function handleEsqueciConfirmar(e) {
     e.preventDefault();
     const user = usuarios.find((u) => u.login.toLowerCase() === esqueci.login.trim().toLowerCase());
     if (!user) {
@@ -533,7 +610,16 @@ export default function App() {
       setEsqueci({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' });
       return;
     }
-    if (user.resposta.trim().toLowerCase() !== esqueci.resposta.trim().toLowerCase()) {
+    let respostaOk = false;
+    try {
+      respostaOk = user.respostaHash
+        ? (await derivarHash(normResposta(esqueci.resposta), user.salt)) === user.respostaHash
+        : (user.resposta || '').trim().toLowerCase() === esqueci.resposta.trim().toLowerCase();
+    } catch {
+      setErro('Este navegador não suporta a verificação segura. Use HTTPS ou um navegador atualizado.');
+      return;
+    }
+    if (!respostaOk) {
       setErro('Resposta de segurança incorreta.');
       return;
     }
@@ -545,7 +631,9 @@ export default function App() {
       setErro('As senhas não coincidem.');
       return;
     }
-    setUsuarios((prev) => prev.map((u) => (u.login.toLowerCase() === user.login.toLowerCase() ? { ...u, senha: esqueci.novaSenha } : u)));
+    const saltNovo = user.salt || novoSalt();
+    const novoHash = await derivarHash(esqueci.novaSenha, saltNovo);
+    setUsuarios((prev) => prev.map((u) => (u.login.toLowerCase() === user.login.toLowerCase() ? { ...u, salt: saltNovo, senhaHash: novoHash, senha: undefined } : u)));
     setEsqueci({ etapa: 1, login: '', perguntaEncontrada: '', resposta: '', novaSenha: '', confirmar: '' });
     setErro('');
     setMsgSucesso('Senha redefinida com sucesso. Faça login com a nova senha.');
@@ -953,9 +1041,34 @@ export default function App() {
     showToast('Usuário removido', 'alerta');
   }
 
-  // ---------- Backup ----------
+  // ---------- Estado persistido / Backup ----------
+  function aplicarEstado(d) {
+    if (!d || typeof d !== 'object') return;
+    const arr = Array.isArray;
+    if (arr(d.produtos)) setProdutos(d.produtos);
+    if (arr(d.categorias)) setCategorias(d.categorias);
+    if (arr(d.clientes)) setClientes(d.clientes);
+    if (arr(d.fornecedores)) setFornecedores(d.fornecedores);
+    if (arr(d.compras)) setCompras(d.compras);
+    if (arr(d.vendas)) setVendas(d.vendas);
+    if (arr(d.trocas)) setTrocas(d.trocas);
+    if (arr(d.devolucoes)) setDevolucoes(d.devolucoes);
+    if (arr(d.financeiro)) setFinanceiro(d.financeiro);
+    if (arr(d.sangrias)) setSangrias(d.sangrias);
+    if (arr(d.suprimentos)) setSuprimentos(d.suprimentos);
+    if (arr(d.contasPagar)) setContasPagar(d.contasPagar);
+    if (arr(d.contasReceber)) setContasReceber(d.contasReceber);
+    if (arr(d.movimentos)) setMovimentos(d.movimentos);
+    if (arr(d.auditoria)) setAuditoria(d.auditoria);
+    if (arr(d.usuarios) && d.usuarios.length) setUsuarios(d.usuarios);
+    if (arr(d.perfis) && d.perfis.length) setPerfis(d.perfis);
+    if (d.config && typeof d.config === 'object') setConfig({ ...CONFIG_PADRAO, ...d.config });
+    if (d.caixa && typeof d.caixa === 'object') setCaixa(d.caixa);
+    if ('ultimoFechamento' in d) setUltimoFechamento(d.ultimoFechamento ?? null);
+  }
+
   function exportarBackup() {
-    const dados = { produtos, categorias, clientes, fornecedores, compras, vendas, trocas, devolucoes, financeiro, sangrias, suprimentos, contasPagar, contasReceber, movimentos, auditoria, usuarios, config, exportadoEm: Date.now() };
+    const dados = { ...estadoPersistido, exportadoEm: Date.now() };
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -967,35 +1080,40 @@ export default function App() {
   }
 
   function importarBackup(dados) {
-    try {
-      if (dados.produtos) setProdutos(dados.produtos);
-      if (dados.categorias) setCategorias(dados.categorias);
-      if (dados.clientes) setClientes(dados.clientes);
-      if (dados.fornecedores) setFornecedores(dados.fornecedores);
-      if (dados.compras) setCompras(dados.compras);
-      if (dados.vendas) setVendas(dados.vendas);
-      if (dados.trocas) setTrocas(dados.trocas);
-      if (dados.devolucoes) setDevolucoes(dados.devolucoes);
-      if (dados.financeiro) setFinanceiro(dados.financeiro);
-      if (dados.sangrias) setSangrias(dados.sangrias);
-      if (dados.suprimentos) setSuprimentos(dados.suprimentos);
-      if (dados.contasPagar) setContasPagar(dados.contasPagar);
-      if (dados.contasReceber) setContasReceber(dados.contasReceber);
-      if (dados.movimentos) setMovimentos(dados.movimentos);
-      if (dados.auditoria) setAuditoria(dados.auditoria);
-      if (dados.usuarios) setUsuarios(dados.usuarios);
-      if (dados.config) setConfig(dados.config);
-      showToast('Backup restaurado com sucesso');
-    } catch {
+    if (!dados || typeof dados !== 'object' || !Array.isArray(dados.produtos)) {
       showToast('Arquivo de backup inválido', 'alerta');
+      return;
     }
+    aplicarEstado(dados);
+    registrarAuditoria({ acao: 'Restauração de Backup', detalhe: 'Dados substituídos por arquivo de backup' });
+    showToast('Backup restaurado com sucesso');
   }
 
   function resetarSistema() {
     setProdutos(PRODUTOS_INICIAIS); setCategorias(CATEGORIAS_INICIAIS); setClientes([]); setFornecedores(FORNECEDORES_INICIAIS);
     setCompras([]); setVendas([]); setTrocas([]); setDevolucoes([]); setFinanceiro([]); setSangrias([]); setSuprimentos([]);
     setContasPagar([]); setContasReceber([]); setMovimentos([]); setAuditoria([]); setCaixa({ aberto: false, valorAbertura: 0, dataAbertura: null, operador: null });
+    setUltimoFechamento(null); setPerfis(PERFIS_INICIAIS);
+    registrarAuditoria({ acao: 'Reset do Sistema', detalhe: 'Dados restaurados para o padrão de fábrica' });
     showToast('Sistema restaurado para os dados iniciais', 'alerta');
+  }
+
+  async function alterarMinhaSenha({ atual, nova }) {
+    const user = usuarios.find((u) => u.login === operador);
+    if (!user) return 'Usuário não encontrado.';
+    if (!nova || nova.length < 4) return 'A nova senha deve ter ao menos 4 caracteres.';
+    try {
+      const ok = user.senhaHash ? (await derivarHash(atual, user.salt)) === user.senhaHash : user.senha === atual;
+      if (!ok) return 'Senha atual incorreta.';
+      const salt = user.salt || novoSalt();
+      const hash = await derivarHash(nova, salt);
+      setUsuarios((prev) => prev.map((u) => (u.login === operador ? { ...u, salt, senhaHash: hash, senha: undefined } : u)));
+    } catch {
+      return 'Não foi possível alterar a senha neste navegador.';
+    }
+    registrarAuditoria({ acao: 'Alteração de Senha', detalhe: operador });
+    showToast('Senha alterada com sucesso');
+    return null;
   }
 
   function imprimirCupomTermico(venda) {
@@ -1071,6 +1189,156 @@ export default function App() {
     showToast('Caixa fechado com sucesso');
     registrarAuditoria({ acao: 'Fechamento de Caixa', detalhe: `Diferença: ${fmt(diferenca)}` });
     setScreen('dashboard');
+  }
+
+  // ---------- PERSISTÊNCIA: efeitos ----------
+  const estadoPersistido = {
+    produtos, categorias, clientes, fornecedores, compras, vendas, trocas, devolucoes, financeiro,
+    sangrias, suprimentos, contasPagar, contasReceber, movimentos, auditoria, usuarios, perfis, config, caixa, ultimoFechamento,
+  };
+  const deviceRef = useRef(obterDeviceId());
+  const conectarRef = useRef(null);
+  const nuvem = useRef({ sb: null, canal: null, authSub: null, pronta: !CLOUD_ATIVA, ultimoJSON: null, veioDaNuvem: false, timer: null, cancelado: false });
+  const [syncStatus, setSyncStatus] = useState(CLOUD_ATIVA ? 'conectando' : 'local');
+  const [syncTick, setSyncTick] = useState(0);
+  const [erroLocal, setErroLocal] = useState(false);
+
+  // Migra senhas/respostas em texto puro (dados antigos ou backups antigos) para hash PBKDF2
+  useEffect(() => {
+    const precisa = usuarios.some((u) => u.senha !== undefined || u.resposta !== undefined);
+    if (!precisa) return undefined;
+    let cancelado = false;
+    (async () => {
+      try {
+        const novos = await Promise.all(usuarios.map(async (u) => {
+          if (u.senha === undefined && u.resposta === undefined) return u;
+          const salt = u.salt || novoSalt();
+          const { senha, resposta, ...resto } = u;
+          return {
+            ...resto,
+            salt,
+            senhaHash: u.senhaHash || (senha !== undefined ? await derivarHash(senha, salt) : undefined),
+            respostaHash: u.respostaHash || (resposta !== undefined ? await derivarHash(normResposta(resposta), salt) : undefined),
+          };
+        }));
+        if (!cancelado) setUsuarios(novos);
+      } catch (e) {
+        console.error('Migração de senhas indisponível neste navegador:', e);
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [usuarios]);
+
+  // Salva localmente (sempre) e na nuvem (se ativa e conectada), com debounce
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const corpo = JSON.stringify(estadoPersistido);
+      const payload = { ...estadoPersistido, __device: deviceRef.current, __salvoEm: Date.now() };
+      try {
+        localStorage.setItem(STORE_KEY, JSON.stringify(payload));
+        setErroLocal(false);
+      } catch {
+        setErroLocal(true);
+      }
+      const N = nuvem.current;
+      if (!CLOUD_ATIVA || !N.pronta || !N.sb) return;
+      if (N.veioDaNuvem) { N.veioDaNuvem = false; N.ultimoJSON = corpo; return; }
+      if (corpo === N.ultimoJSON) return;
+      setSyncStatus('sincronizando');
+      const { error } = await N.sb.from('pdv_state').upsert({ id: CLOUD_ID, data: payload, updated_at: new Date().toISOString() });
+      if (error) {
+        console.error('Falha ao enviar para a nuvem:', error);
+        setSyncStatus('erro');
+      } else {
+        N.ultimoJSON = corpo;
+        setSyncStatus('sincronizado');
+      }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [produtos, categorias, clientes, fornecedores, compras, vendas, trocas, devolucoes, financeiro, sangrias, suprimentos, contasPagar, contasReceber, movimentos, auditoria, usuarios, perfis, config, caixa, ultimoFechamento, syncTick]);
+
+  // Conexão com a nuvem (Supabase): carrega estado, assina mudanças em tempo real
+  useEffect(() => {
+    if (!CLOUD_ATIVA) return undefined;
+    const N = nuvem.current;
+    N.cancelado = false;
+
+    async function conectar() {
+      if (N.cancelado) return;
+      clearTimeout(N.timer);
+      try {
+        setSyncStatus('conectando');
+        if (!N.sb) {
+          const { createClient } = await import('@supabase/supabase-js');
+          N.sb = createClient(CLOUD_URL, CLOUD_KEY);
+          const { data: sub } = N.sb.auth.onAuthStateChange((evento) => {
+            if (evento === 'SIGNED_OUT') { N.pronta = false; setSyncStatus('precisa-login'); }
+          });
+          N.authSub = sub.subscription;
+        }
+        const { data: sessao } = await N.sb.auth.getSession();
+        if (!sessao.session) { N.pronta = false; setSyncStatus('precisa-login'); return; }
+
+        const { data, error } = await N.sb.from('pdv_state').select('data, updated_at').eq('id', CLOUD_ID).maybeSingle();
+        if (error) throw error;
+        if (N.cancelado) return;
+        if (data && data.data) {
+          const remotoTs = new Date(data.updated_at).getTime();
+          if (remotoTs >= (SALVO.__salvoEm || 0)) { N.veioDaNuvem = true; aplicarEstado(data.data); }
+        }
+        N.pronta = true;
+        if (N.canal) N.sb.removeChannel(N.canal);
+        N.canal = N.sb
+          .channel(`pdv-${CLOUD_ID}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'pdv_state', filter: `id=eq.${CLOUD_ID}` }, (payload) => {
+            const novo = payload.new;
+            if (!novo || !novo.data || novo.data.__device === deviceRef.current) return;
+            N.veioDaNuvem = true;
+            aplicarEstado(novo.data);
+            setSyncStatus('sincronizado');
+          })
+          .subscribe();
+        setSyncStatus('sincronizado');
+        setSyncTick((x) => x + 1); // garante o envio do estado local caso a nuvem esteja vazia/defasada
+      } catch (e) {
+        console.error('Sincronização com a nuvem:', e);
+        setSyncStatus('erro');
+        N.timer = setTimeout(conectar, 15000);
+      }
+    }
+
+    conectarRef.current = conectar;
+    conectar();
+    const aoVoltarOnline = () => conectar();
+    window.addEventListener('online', aoVoltarOnline);
+    return () => {
+      N.cancelado = true;
+      clearTimeout(N.timer);
+      window.removeEventListener('online', aoVoltarOnline);
+      if (N.canal && N.sb) N.sb.removeChannel(N.canal);
+      if (N.authSub) N.authSub.unsubscribe();
+      N.canal = null;
+      N.authSub = null;
+    };
+  }, []);
+
+  async function entrarNuvem(email, senhaNuvem) {
+    const N = nuvem.current;
+    if (!N.sb) return 'A nuvem ainda está carregando. Tente de novo em instantes.';
+    const { error } = await N.sb.auth.signInWithPassword({ email, password: senhaNuvem });
+    if (error) return error.message;
+    if (conectarRef.current) conectarRef.current();
+    return null;
+  }
+  async function sairNuvem() {
+    const N = nuvem.current;
+    if (N.sb) await N.sb.auth.signOut();
+    N.pronta = false;
+    setSyncStatus('precisa-login');
+  }
+  function sincronizarAgora() {
+    nuvem.current.ultimoJSON = null;
+    setSyncTick((x) => x + 1);
   }
 
   // ---------- LOGIN / CADASTRO / ESQUECI SENHA ----------
@@ -1269,7 +1537,7 @@ export default function App() {
     { key: 'perfis', label: 'Perfis', icon: ShieldCheck },
     { key: 'auditoria', label: 'Auditoria', icon: History },
   ];
-  const configItems = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Sistema'].map((aba) => ({
+  const configItems = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Nuvem', 'Sistema'].map((aba) => ({
     key: `config-${aba}`, label: aba, icon: Settings,
     onClick: () => { setConfigAba(aba); setErro(''); setScreen('configuracoes'); },
     isActive: () => screen === 'configuracoes' && configAba === aba,
@@ -1416,7 +1684,8 @@ export default function App() {
             <Clock size={12} />
             {relogio.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'short' })} · {relogio.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
           </span>
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: caixa.aberto ? C.accentDark : C.muted }}>
+          <SyncBadge status={syncStatus} erroLocal={erroLocal} onClick={() => { if (CLOUD_ATIVA) { setConfigAba('Nuvem'); setScreen('configuracoes'); } }} />
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, color: caixa.aberto ? C.accentDark : C.muted }}>
             <span style={{ width: 6, height: 6, borderRadius: 99, background: caixa.aberto ? C.accent : C.mutedDark }} />
             {caixa.aberto ? `Caixa aberto · ${fmt(valorEsperadoCaixa)}` : 'Caixa fechado'}
           </span>
@@ -1512,7 +1781,7 @@ export default function App() {
           )}
 
           {screen === 'configuracoes' && (
-            <ConfiguracoesScreen aba={configAba} setAba={setConfigAba} config={config} setConfig={setConfig} onExportar={exportarBackup} onImportar={importarBackup} onResetar={resetarSistema} />
+            <ConfiguracoesScreen aba={configAba} setAba={setConfigAba} config={config} setConfig={setConfig} onExportar={exportarBackup} onImportar={importarBackup} onResetar={resetarSistema} nuvem={{ ativa: CLOUD_ATIVA, status: syncStatus, erroLocal, entrar: entrarNuvem, sair: sairNuvem, sincronizar: sincronizarAgora }} />
           )}
 
           {screen === 'produtos' && (
@@ -1563,7 +1832,7 @@ export default function App() {
 
           {screen === 'despesas' && <ReceitasDespesasScreen financeiro={financeiro} tipo="despesas" />}
 
-          {screen === 'usuarios' && <UsuariosScreen usuarios={usuarios} perfis={perfis} operadorAtual={operador} onToggleAtivo={alternarAtivoUsuario} onAlterarPerfil={alterarPerfilUsuario} onDelete={excluirUsuario} />}
+          {screen === 'usuarios' && <UsuariosScreen usuarios={usuarios} perfis={perfis} operadorAtual={operador} onToggleAtivo={alternarAtivoUsuario} onAlterarPerfil={alterarPerfilUsuario} onDelete={excluirUsuario} onAlterarSenha={alterarMinhaSenha} />}
 
           {screen === 'perfis' && <PerfisScreen usuarios={usuarios} perfis={perfis} onAlterarPermissao={alterarPermissaoPerfil} />}
 
@@ -1579,6 +1848,127 @@ export default function App() {
 }
 
 // ---------- SUBCOMPONENTES ----------
+
+const SYNC_INFO = {
+  local: { texto: 'Salvo neste dispositivo', cor: '#8B8DA0' },
+  conectando: { texto: 'Conectando à nuvem…', cor: '#F59E0B' },
+  'precisa-login': { texto: 'Nuvem: faça login', cor: '#F59E0B' },
+  sincronizando: { texto: 'Sincronizando…', cor: '#6D5DF6' },
+  sincronizado: { texto: 'Sincronizado', cor: '#0F9C8C' },
+  erro: { texto: 'Sem conexão — salvo localmente', cor: '#EF4444' },
+};
+
+function SyncBadge({ status, erroLocal, onClick }) {
+  const info = erroLocal ? { texto: 'Falha ao salvar neste navegador', cor: '#EF4444' } : (SYNC_INFO[status] || SYNC_INFO.local);
+  return (
+    <button onClick={onClick} title="Estado de salvamento dos dados" style={{ marginLeft: 'auto', marginRight: 14, display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: CLOUD_ATIVA ? 'pointer' : 'default', padding: 0, fontSize: 11.5, fontWeight: 600, color: info.cor }}>
+      <span style={{ width: 6, height: 6, borderRadius: 99, background: info.cor }} />
+      {info.texto}
+    </button>
+  );
+}
+
+function NuvemPanel({ nuvem }) {
+  const [email, setEmail] = useState('');
+  const [senhaNuvem, setSenhaNuvem] = useState('');
+  const [erro, setErro] = useState('');
+  const [carregando, setCarregando] = useState(false);
+
+  async function entrar(e) {
+    e.preventDefault();
+    setErro('');
+    setCarregando(true);
+    const r = await nuvem.entrar(email.trim(), senhaNuvem);
+    setCarregando(false);
+    if (r) setErro(r); else setSenhaNuvem('');
+  }
+
+  const info = nuvem.erroLocal ? { texto: 'Falha ao salvar neste navegador', cor: C.danger } : (SYNC_INFO[nuvem.status] || SYNC_INFO.local);
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+        <Database size={15} color={C.primaryDark} />
+        <span style={{ fontWeight: 700, fontSize: 13.5 }}>Nuvem (Supabase)</span>
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, color: info.cor }}>
+          <span style={{ width: 6, height: 6, borderRadius: 99, background: info.cor }} />{info.texto}
+        </span>
+      </div>
+
+      {!nuvem.ativa ? (
+        <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+          <p style={{ margin: '8px 0' }}>Os dados já são salvos <strong>neste navegador</strong>. Para acessar os mesmos dados de vários dispositivos, configure o Supabase:</p>
+          <ol style={{ margin: '0 0 8px', paddingLeft: 18 }}>
+            <li>Crie um projeto em supabase.com e rode o arquivo <code>supabase/schema.sql</code> no SQL Editor.</li>
+            <li>Crie um usuário em Authentication → Users (e-mail e senha).</li>
+            <li>No Vercel, defina <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> e faça um novo deploy.</li>
+          </ol>
+          <p style={{ margin: 0 }}>Passo a passo completo no <code>README.md</code> do projeto.</p>
+        </div>
+      ) : nuvem.status === 'precisa-login' ? (
+        <form onSubmit={entrar}>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '8px 0 14px' }}>Entre com o usuário criado no Supabase (Authentication) para liberar a sincronização neste dispositivo. É um login diferente do login do PDV.</p>
+          <label style={labelSm}>E-mail</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputLightStyle} />
+          <label style={{ ...labelSm, marginTop: 12 }}>Senha</label>
+          <input type="password" value={senhaNuvem} onChange={(e) => setSenhaNuvem(e.target.value)} style={inputLightStyle} />
+          {erro && <div style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{erro}</div>}
+          <button type="submit" disabled={carregando} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 16, opacity: carregando ? 0.6 : 1 }}>
+            {carregando ? 'Entrando…' : 'Conectar à nuvem'}
+          </button>
+        </form>
+      ) : (
+        <div>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '8px 0 14px' }}>Alterações são enviadas automaticamente e as de outros dispositivos chegam em tempo real. Se dois dispositivos editarem ao mesmo tempo, vale a última gravação.</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={nuvem.sincronizar} style={btnPrimary}><Upload size={14} /> Sincronizar agora</button>
+            <button type="button" onClick={nuvem.sair} style={btnGhostSolid}><LogOut size={14} /> Sair da nuvem</button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TrocarSenhaCard({ onAlterarSenha }) {
+  const [atual, setAtual] = useState('');
+  const [nova, setNova] = useState('');
+  const [confirmar, setConfirmar] = useState('');
+  const [msg, setMsg] = useState({ tipo: '', texto: '' });
+  const [carregando, setCarregando] = useState(false);
+
+  async function enviar(e) {
+    e.preventDefault();
+    if (nova !== confirmar) { setMsg({ tipo: 'erro', texto: 'As senhas novas não coincidem.' }); return; }
+    setCarregando(true);
+    const r = await onAlterarSenha({ atual, nova });
+    setCarregando(false);
+    if (r) { setMsg({ tipo: 'erro', texto: r }); return; }
+    setAtual(''); setNova(''); setConfirmar('');
+    setMsg({ tipo: 'ok', texto: 'Senha alterada.' });
+  }
+
+  return (
+    <form onSubmit={enviar}>
+      <Card style={{ marginTop: 18, maxWidth: 420 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
+          <KeyRound size={15} color={C.primaryDark} />
+          <span style={{ fontWeight: 700, fontSize: 13.5 }}>Alterar minha senha</span>
+        </div>
+        <label style={labelSm}>Senha atual</label>
+        <input type="password" value={atual} onChange={(e) => setAtual(e.target.value)} style={inputLightStyle} />
+        <label style={{ ...labelSm, marginTop: 12 }}>Nova senha (mín. 4 caracteres)</label>
+        <input type="password" value={nova} onChange={(e) => setNova(e.target.value)} style={inputLightStyle} />
+        <label style={{ ...labelSm, marginTop: 12 }}>Confirmar nova senha</label>
+        <input type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)} style={inputLightStyle} />
+        {msg.texto && <div style={{ color: msg.tipo === 'erro' ? C.danger : C.accentDark, fontSize: 12, marginTop: 10 }}>{msg.texto}</div>}
+        <button type="submit" disabled={carregando} style={{ ...btnPrimary, width: '100%', justifyContent: 'center', marginTop: 14, opacity: carregando ? 0.6 : 1 }}>
+          <Check size={14} /> {carregando ? 'Salvando…' : 'Alterar senha'}
+        </button>
+      </Card>
+    </form>
+  );
+}
 
 function AccessDeniedScreen({ area, perfil, onVoltar }) {
   const label = AREAS_SISTEMA.find((a) => a.key === area)?.label || area;
@@ -3323,11 +3713,11 @@ function RelatoriosScreen({ aba, setAba, vendas, sangrias, produtos, financeiro 
   );
 }
 
-function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImportar, onResetar }) {
+function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImportar, onResetar, nuvem }) {
   const [local, setLocal] = useState(config);
   const [salvo, setSalvo] = useState(false);
   const [confirmarReset, setConfirmarReset] = useState(false);
-  const abas = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Sistema'];
+  const abas = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Nuvem', 'Sistema'];
 
   function salvar(e) {
     e.preventDefault();
@@ -3477,13 +3867,15 @@ function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImp
         </Card>
       )}
 
+      {aba === 'Nuvem' && <NuvemPanel nuvem={nuvem} />}
+
       {aba === 'Sistema' && (
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
             <Cog size={15} color={C.primaryDark} />
             <span style={{ fontWeight: 700, fontSize: 13.5 }}>Sistema</span>
           </div>
-          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>PDV Terminal — versão 1.0. Dados armazenados apenas em memória (resetam ao recarregar a página, exceto se restaurados de um backup).</p>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>PDV Terminal — versão 1.1. Os dados ficam salvos neste navegador (localStorage) e, se a nuvem estiver configurada, também no Supabase. Limpar os dados do navegador apaga a cópia local — mantenha backups.</p>
           <div style={{ borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
             <div style={{ fontWeight: 700, fontSize: 12.5, color: C.danger, marginBottom: 8 }}>Zona de risco</div>
             {!confirmarReset ? (
@@ -4135,7 +4527,7 @@ function SuprimentoScreen({ suprimentoInput, setSuprimentoInput, onConfirmar, hi
   );
 }
 
-function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlterarPerfil, onDelete }) {
+function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlterarPerfil, onDelete, onAlterarSenha }) {
   return (
     <div style={{ maxWidth: 720 }}>
       <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Usuários</h1>
@@ -4167,6 +4559,8 @@ function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlte
           </div>
         ))}
       </Card>
+
+      <TrocarSenhaCard onAlterarSenha={onAlterarSenha} />
     </div>
   );
 }
