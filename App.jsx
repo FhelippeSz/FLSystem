@@ -248,7 +248,7 @@ const PRODUTOS_INICIAIS = [
   { id: 8, nome: 'Detergente 500ml', preco: 3.2, custo: 1.7, estoque: 30, estoqueMinimo: 15, categoria: 'Limpeza', codigoBarras: '7891000000082' },
   { id: 9, nome: 'Sabão em Pó 1kg', preco: 12.5, custo: 7.8, estoque: 18, estoqueMinimo: 10, categoria: 'Limpeza', codigoBarras: '7891000000099' },
   { id: 10, nome: 'Biscoito Recheado 130g', preco: 4.3, custo: 2.4, estoque: 50, estoqueMinimo: 15, categoria: 'Alimentos', codigoBarras: '7891000000105' },
-];
+].map((p) => ({ ...p, estoqueBase: p.estoque }));
 
 const FORNECEDORES_INICIAIS = [
   { id: 1, nome: 'Distribuidora X', contato: 'Carlos Souza', telefone: '(11) 98888-1234', cnpj: '12.345.678/0001-90' },
@@ -335,7 +335,7 @@ function lerEstadoLocal() {
     return {};
   }
 }
-const SALVO = lerEstadoLocal();
+const SALVO = normalizarEstadoSalvo(lerEstadoLocal());
 const SESSAO0 = (() => { try { return localStorage.getItem(SESSAO_KEY); } catch { return null; } })();
 
 function obterDeviceId() {
@@ -349,6 +349,110 @@ function obterDeviceId() {
   } catch {
     return `dev-${Math.random().toString(36).slice(2, 10)}`;
   }
+}
+
+// ---------- IDs únicos e sincronização por registro ----------
+let _ultimoId = 0;
+function novoId() {
+  // ms * 1000 + sufixo aleatório: único neste dispositivo (sempre crescente) e, na prática, entre dispositivos
+  let id = Date.now() * 1000 + Math.floor(Math.random() * 1000);
+  if (id <= _ultimoId) id = _ultimoId + 1;
+  _ultimoId = id;
+  return id;
+}
+function proximoNumero(lista) {
+  return lista.reduce((m, x) => Math.max(m, Number(x.numero) || 0), 0) + 1;
+}
+
+// Cada item das listas abaixo vira uma linha própria na nuvem (chave = campo indicado)
+const COLECOES = [
+  { nome: 'produtos', chave: 'id' }, { nome: 'categorias', chave: 'id' }, { nome: 'clientes', chave: 'id' },
+  { nome: 'fornecedores', chave: 'id' }, { nome: 'compras', chave: 'id' }, { nome: 'vendas', chave: 'id' },
+  { nome: 'trocas', chave: 'id' }, { nome: 'devolucoes', chave: 'id' }, { nome: 'financeiro', chave: 'id' },
+  { nome: 'sangrias', chave: 'id' }, { nome: 'suprimentos', chave: 'id' }, { nome: 'contasPagar', chave: 'id' },
+  { nome: 'contasReceber', chave: 'id' }, { nome: 'movimentos', chave: 'id' }, { nome: 'auditoria', chave: 'id' },
+  { nome: 'usuarios', chave: 'login' }, { nome: 'perfis', chave: 'nome' },
+];
+const CHAVE_COLECAO = Object.fromEntries(COLECOES.map((c) => [c.nome, c.chave]));
+const SINGLETONS = ['caixa', 'config', 'ultimoFechamento'];
+const COLECOES_COM_HORA = ['vendas', 'financeiro', 'movimentos', 'auditoria', 'sangrias', 'suprimentos', 'compras', 'trocas', 'devolucoes'];
+
+// Estoque e saldo devedor são DERIVADOS (estoque-base + movimentações; soma das contas a receber em aberto).
+// Por isso não vão para a nuvem: assim dois caixas vendendo ao mesmo tempo nunca sobrescrevem um ao outro.
+function paraNuvem(colecao, item) {
+  if (colecao === 'produtos') { const { estoque, ...resto } = item; return resto; }
+  if (colecao === 'clientes') { const { saldoDevedor, ...resto } = item; return resto; }
+  return item;
+}
+
+function estavel(v) {
+  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
+  if (Array.isArray(v)) return `[${v.map((x) => (x === undefined ? 'null' : estavel(x))).join(',')}]`;
+  return `{${Object.keys(v).filter((k) => v[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${estavel(v[k])}`).join(',')}}`;
+}
+function cyrb53(str) {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+const _cacheHash = new WeakMap();
+function hashDe(item, colecao) {
+  if (item && typeof item === 'object' && _cacheHash.has(item)) return _cacheHash.get(item);
+  const h = cyrb53(estavel(paraNuvem(colecao, item)));
+  if (item && typeof item === 'object') _cacheHash.set(item, h);
+  return h;
+}
+
+function linhasDoEstado(est) {
+  const m = new Map();
+  COLECOES.forEach(({ nome, chave }) => {
+    (est[nome] || []).forEach((item) => {
+      const id = String(item[chave]);
+      const pendente = nome === 'usuarios' && (item.senha !== undefined || item.resposta !== undefined); // ainda sem hash: não envia
+      m.set(`${nome}/${id}`, { colecao: nome, id, item, hash: pendente ? `PEND:${id}` : hashDe(item, nome), pendente });
+    });
+  });
+  SINGLETONS.forEach((nome) => {
+    const v = est[nome];
+    if (v !== null && v !== undefined) m.set(`singleton/${nome}`, { colecao: 'singleton', id: nome, item: v, hash: hashDe(v, 'singleton'), pendente: false });
+  });
+  return m;
+}
+
+const BASELINE_KEY = 'pdv:baseline:v2';
+function lerBaseline() {
+  try { return JSON.parse(localStorage.getItem(BASELINE_KEY) || '{}'); } catch { return {}; }
+}
+function salvarBaseline(b) {
+  try { localStorage.setItem(BASELINE_KEY, JSON.stringify(b)); } catch { /* ignora */ }
+}
+
+// Dados antigos: define o estoque-base (estoque atual - movimentações) e ids únicos
+function normalizarEstadoSalvo(e) {
+  if (!e || typeof e !== 'object') return {};
+  const mov = Array.isArray(e.movimentos) ? e.movimentos : [];
+  const soma = {};
+  mov.forEach((m) => { soma[m.produtoId] = (soma[m.produtoId] || 0) + (m.quantidade || 0); });
+  if (Array.isArray(e.produtos)) {
+    e.produtos = e.produtos.map((p) => (p.estoqueBase === undefined ? { ...p, estoqueBase: (p.estoque || 0) - (soma[p.id] || 0) } : p));
+  }
+  ['vendas', 'compras', 'trocas', 'devolucoes'].forEach((c) => {
+    if (Array.isArray(e[c])) e[c] = e[c].map((x) => (x.id === undefined ? { ...x, id: `legado-${c}-${x.numero}` } : x));
+  });
+  return e;
+}
+
+function fundirRemoto(colecao, atual, data) {
+  if (colecao === 'produtos') return { estoque: atual ? atual.estoque : (data.estoqueBase ?? 0), ...data };
+  if (colecao === 'clientes') return { saldoDevedor: atual ? atual.saldoDevedor : 0, ...data };
+  return data;
 }
 
 // ---------- SENHAS (PBKDF2 via Web Crypto) ----------
@@ -648,7 +752,7 @@ export default function App() {
       return;
     }
     setCaixa({ aberto: true, valorAbertura: valor, dataAbertura: Date.now(), operador });
-    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: 'Abertura de Caixa', valor, hora: Date.now() }]);
+    setFinanceiro((prev) => [...prev, { id: novoId(), tipo: 'Abertura de Caixa', valor, hora: Date.now() }]);
     setValorAberturaInput('');
     setErro('');
     showToast('Caixa aberto com sucesso');
@@ -695,11 +799,11 @@ export default function App() {
   }
 
   function registrarMovimento({ tipo, produtoId, produtoNome, quantidade, motivo }) {
-    setMovimentos((prev) => [...prev, { id: prev.length + 1, tipo, produtoId, produtoNome, quantidade, motivo, hora: Date.now(), operador }]);
+    setMovimentos((prev) => [...prev, { id: novoId(), tipo, produtoId, produtoNome, quantidade, motivo, hora: Date.now(), operador }]);
   }
 
   function registrarAuditoria({ acao, detalhe, operadorOverride }) {
-    setAuditoria((prev) => [...prev, { id: prev.length + 1, acao, detalhe, operador: operadorOverride || operador, hora: Date.now() }]);
+    setAuditoria((prev) => [...prev, { id: novoId(), acao, detalhe, operador: operadorOverride || operador, hora: Date.now() }]);
   }
 
   function confirmarPagamento() {
@@ -721,9 +825,10 @@ export default function App() {
       return;
     }
 
-    const numero = vendas.length + 1;
+    const numero = proximoNumero(vendas);
     const cliente = pagamento.forma === 'Credário' ? clientes.find((c) => c.id === Number(pagamento.clienteId)) : null;
     const venda = {
+      id: novoId(),
       numero,
       itens: carrinho,
       subtotal: totalCarrinho,
@@ -750,13 +855,13 @@ export default function App() {
       setClientes((prev) => prev.map((c) => (c.id === cliente.id ? { ...c, saldoDevedor: (c.saldoDevedor || 0) + totalComDesconto } : c)));
       setContasReceber((prev) => [
         ...prev,
-        { id: prev.length ? Math.max(...prev.map((c) => c.id)) + 1 : 1, descricao: `Credário — Venda #${numero}`, clienteId: cliente.id, clienteNome: cliente.nome, valor: totalComDesconto, vencimento: Date.now() + 30 * 86400000, recebido: false, dataRecebimento: null, origemVenda: numero },
+        { id: novoId(), descricao: `Credário — Venda #${numero}`, clienteId: cliente.id, clienteNome: cliente.nome, valor: totalComDesconto, vencimento: Date.now() + 30 * 86400000, recebido: false, dataRecebimento: null, origemVenda: numero },
       ]);
     } else {
       // Registrar financeiro (vendas à vista)
       setFinanceiro((prev) => [
         ...prev,
-        { id: prev.length + 1, tipo: `Venda #${numero} (${pagamento.forma})`, valor: totalComDesconto, hora: venda.hora },
+        { id: novoId(), tipo: `Venda #${numero} (${pagamento.forma})`, valor: totalComDesconto, hora: venda.hora },
       ]);
     }
 
@@ -773,12 +878,17 @@ export default function App() {
   }
 
   function adicionarProdutoCadastro(novo) {
-    const id = produtos.length ? Math.max(...produtos.map((p) => p.id)) + 1 : 1;
-    setProdutos((prev) => [...prev, { id, ...novo }]);
+    const id = novoId();
+    setProdutos((prev) => [...prev, { id, estoqueBase: novo.estoque, ...novo }]);
     showToast('Produto cadastrado');
   }
 
   function editarProduto(id, dados) {
+    const atual = produtos.find((p) => p.id === id);
+    if (atual && typeof dados.estoque === 'number' && dados.estoque !== atual.estoque) {
+      // o estoque é a soma do estoque-base com as movimentações; edição manual vira um ajuste registrado
+      registrarMovimento({ tipo: 'Ajuste', produtoId: id, produtoNome: dados.nome || atual.nome, quantidade: dados.estoque - atual.estoque, motivo: 'Edição manual do cadastro' });
+    }
     setProdutos((prev) => prev.map((p) => (p.id === id ? { ...p, ...dados } : p)));
     showToast('Produto atualizado');
   }
@@ -789,9 +899,10 @@ export default function App() {
     registrarAuditoria({ acao: 'Exclusão de Produto', detalhe: `Produto #${id} removido` });
   }
 
-  function cancelarVenda(numero) {
-    const venda = vendas.find((v) => v.numero === numero);
+  function cancelarVenda(vendaId) {
+    const venda = vendas.find((v) => v.id === vendaId);
     if (!venda || venda.cancelada) return;
+    const numero = venda.numero;
     setProdutos((prev) =>
       prev.map((p) => {
         const item = venda.itens.find((i) => i.id === p.id);
@@ -800,10 +911,10 @@ export default function App() {
     );
     setFinanceiro((prev) => [
       ...prev,
-      { id: prev.length + 1, tipo: `Estorno Venda #${venda.numero}`, valor: -venda.total, hora: Date.now() },
+      { id: novoId(), tipo: `Estorno Venda #${venda.numero}`, valor: -venda.total, hora: Date.now() },
     ]);
     venda.itens.forEach((i) => registrarMovimento({ tipo: 'Estorno', produtoId: i.id, produtoNome: i.nome, quantidade: i.qtd, motivo: `Cancelamento Venda #${String(numero).padStart(4, '0')}` }));
-    setVendas((prev) => prev.map((v) => (v.numero === numero ? { ...v, cancelada: true } : v)));
+    setVendas((prev) => prev.map((v) => (v.id === vendaId ? { ...v, cancelada: true } : v)));
     showToast(`Venda #${String(numero).padStart(4, '0')} cancelada`, 'alerta');
     registrarAuditoria({ acao: 'Cancelamento de Venda', detalhe: `Venda #${String(numero).padStart(4, '0')}` });
   }
@@ -814,11 +925,11 @@ export default function App() {
     const valor = parseFloat(String(sangriaInput.valor).replace(',', '.'));
     if (isNaN(valor) || valor <= 0) { setErro('Informe um valor de sangria válido.'); return; }
     if (valor > valorEsperadoCaixa) { setErro('Valor de sangria maior que o saldo disponível em caixa.'); return; }
-    const registro = { id: sangrias.length + 1, valor, motivo: sangriaInput.motivo.trim() || 'Não informado', hora: Date.now(), operador };
+    const registro = { id: novoId(), valor, motivo: sangriaInput.motivo.trim() || 'Não informado', hora: Date.now(), operador };
     setSangrias((prev) => [...prev, registro]);
     setFinanceiro((prev) => [
       ...prev,
-      { id: prev.length + 1, tipo: `Sangria: ${registro.motivo}`, valor: -valor, hora: registro.hora },
+      { id: novoId(), tipo: `Sangria: ${registro.motivo}`, valor: -valor, hora: registro.hora },
     ]);
     setSangriaInput({ valor: '', motivo: '' });
     setErro('');
@@ -829,13 +940,13 @@ export default function App() {
     const fornecedor = fornecedores.find((f) => f.id === fornecedorId);
     const subtotal = itens.reduce((s, i) => s + i.qtd * i.custo, 0);
     const total = Math.max(subtotal + (frete || 0) - (desconto || 0), 0);
-    const numero = compras.length + 1;
+    const numero = proximoNumero(compras);
     const itensCompra = itens.map((i) => {
       const p = produtos.find((pp) => pp.id === i.produtoId);
       return { ...i, nome: p ? p.nome : '?' };
     });
     const compra = {
-      numero, fornecedorId, fornecedorNome: fornecedor ? fornecedor.nome : 'Não informado',
+      id: novoId(), numero, fornecedorId, fornecedorNome: fornecedor ? fornecedor.nome : 'Não informado',
       itens: itensCompra, subtotal, frete: frete || 0, desconto: desconto || 0, total, hora: Date.now(), operador,
     };
 
@@ -848,7 +959,7 @@ export default function App() {
     itensCompra.forEach((i) => registrarMovimento({ tipo: 'Compra', produtoId: i.produtoId, produtoNome: i.nome, quantidade: i.qtd, motivo: `Compra #${String(numero).padStart(4, '0')} · ${compra.fornecedorNome}` }));
     setFinanceiro((prev) => [
       ...prev,
-      { id: prev.length + 1, tipo: `Compra #${numero} (${compra.fornecedorNome})`, valor: -total, hora: compra.hora },
+      { id: novoId(), tipo: `Compra #${numero} (${compra.fornecedorNome})`, valor: -total, hora: compra.hora },
     ]);
     setCompras((prev) => [...prev, compra]);
     showToast('Compra registrada — estoque e custo atualizados');
@@ -856,7 +967,7 @@ export default function App() {
   }
 
   function adicionarFornecedor(f) {
-    const id = fornecedores.length ? Math.max(...fornecedores.map((x) => x.id)) + 1 : 1;
+    const id = novoId();
     setFornecedores((prev) => [...prev, { id, ...f }]);
     showToast('Fornecedor cadastrado');
   }
@@ -875,8 +986,10 @@ export default function App() {
   function ajustarEstoque({ produtoId, quantidade, motivo }) {
     const produto = produtos.find((p) => p.id === produtoId);
     if (!produto || !quantidade) return;
-    setProdutos((prev) => prev.map((p) => (p.id === produtoId ? { ...p, estoque: Math.max(0, p.estoque + quantidade) } : p)));
-    registrarMovimento({ tipo: 'Ajuste', produtoId, produtoNome: produto.nome, quantidade, motivo: motivo || 'Ajuste manual' });
+    const efetiva = Math.max(quantidade, -produto.estoque); // não deixa o estoque ficar negativo
+    if (!efetiva) return;
+    setProdutos((prev) => prev.map((p) => (p.id === produtoId ? { ...p, estoque: p.estoque + efetiva } : p)));
+    registrarMovimento({ tipo: 'Ajuste', produtoId, produtoNome: produto.nome, quantidade: efetiva, motivo: motivo || 'Ajuste manual' });
     showToast('Estoque ajustado');
   }
 
@@ -898,7 +1011,7 @@ export default function App() {
   function adicionarCategoria(nome) {
     if (!nome.trim()) return;
     if (categorias.some((c) => c.nome.toLowerCase() === nome.trim().toLowerCase())) { showToast('Categoria já existe', 'alerta'); return; }
-    const id = categorias.length ? Math.max(...categorias.map((c) => c.id)) + 1 : 1;
+    const id = novoId();
     setCategorias((prev) => [...prev, { id, nome: nome.trim() }]);
     showToast('Categoria cadastrada');
   }
@@ -916,7 +1029,7 @@ export default function App() {
 
   // ---------- Clientes ----------
   function adicionarCliente(c) {
-    const id = clientes.length ? Math.max(...clientes.map((x) => x.id)) + 1 : 1;
+    const id = novoId();
     setClientes((prev) => [...prev, { id, saldoDevedor: 0, ...c }]);
     showToast('Cliente cadastrado');
   }
@@ -935,7 +1048,7 @@ export default function App() {
     const pEnt = produtos.find((p) => p.id === produtoEntradaId);
     if (!pSai || !pEnt) return;
     const diferenca = pEnt.preco * qtdEntrada - pSai.preco * qtdSaida;
-    const numero = trocas.length + 1;
+    const numero = proximoNumero(trocas);
     setProdutos((prev) => prev.map((p) => {
       if (p.id === produtoSaidaId) return { ...p, estoque: p.estoque + qtdSaida };
       if (p.id === produtoEntradaId) return { ...p, estoque: Math.max(0, p.estoque - qtdEntrada) };
@@ -944,23 +1057,23 @@ export default function App() {
     registrarMovimento({ tipo: 'Estorno', produtoId: pSai.id, produtoNome: pSai.nome, quantidade: qtdSaida, motivo: `Troca #${numero} — devolução` });
     registrarMovimento({ tipo: 'Venda', produtoId: pEnt.id, produtoNome: pEnt.nome, quantidade: -qtdEntrada, motivo: `Troca #${numero} — novo item` });
     if (diferenca !== 0) {
-      setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Troca #${numero} (diferença)`, valor: diferenca, hora: Date.now() }]);
+      setFinanceiro((prev) => [...prev, { id: novoId(), tipo: `Troca #${numero} (diferença)`, valor: diferenca, hora: Date.now() }]);
     }
-    setTrocas((prev) => [...prev, { numero, produtoSaida: pSai.nome, qtdSaida, produtoEntrada: pEnt.nome, qtdEntrada, diferenca, motivo: motivo || '—', hora: Date.now(), operador }]);
+    setTrocas((prev) => [...prev, { id: novoId(), numero, produtoSaida: pSai.nome, qtdSaida, produtoEntrada: pEnt.nome, qtdEntrada, diferenca, motivo: motivo || '—', hora: Date.now(), operador }]);
     showToast('Troca registrada');
   }
 
   // ---------- Devoluções ----------
   function confirmarDevolucao({ vendaNumero, itens, motivo }) {
-    const numero = devolucoes.length + 1;
+    const numero = proximoNumero(devolucoes);
     const valorTotal = itens.reduce((s, i) => s + i.preco * i.qtd, 0);
     setProdutos((prev) => prev.map((p) => {
       const item = itens.find((i) => i.produtoId === p.id);
       return item ? { ...p, estoque: p.estoque + item.qtd } : p;
     }));
     itens.forEach((i) => registrarMovimento({ tipo: 'Estorno', produtoId: i.produtoId, produtoNome: i.nome, quantidade: i.qtd, motivo: `Devolução #${numero}${vendaNumero ? ` (Venda #${vendaNumero})` : ''}` }));
-    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Devolução #${numero}`, valor: -valorTotal, hora: Date.now() }]);
-    setDevolucoes((prev) => [...prev, { numero, vendaNumero: vendaNumero || null, itens, valorTotal, motivo: motivo || '—', hora: Date.now(), operador }]);
+    setFinanceiro((prev) => [...prev, { id: novoId(), tipo: `Devolução #${numero}`, valor: -valorTotal, hora: Date.now() }]);
+    setDevolucoes((prev) => [...prev, { id: novoId(), numero, vendaNumero: vendaNumero || null, itens, valorTotal, motivo: motivo || '—', hora: Date.now(), operador }]);
     showToast('Devolução registrada — estoque e financeiro atualizados');
   }
 
@@ -970,9 +1083,9 @@ export default function App() {
     if (!caixa.aberto) { setErro('Abra o caixa antes de registrar um suprimento.'); return; }
     const valor = parseFloat(String(suprimentoInput.valor).replace(',', '.'));
     if (isNaN(valor) || valor <= 0) { setErro('Informe um valor de suprimento válido.'); return; }
-    const registro = { id: suprimentos.length + 1, valor, motivo: suprimentoInput.motivo.trim() || 'Não informado', hora: Date.now(), operador };
+    const registro = { id: novoId(), valor, motivo: suprimentoInput.motivo.trim() || 'Não informado', hora: Date.now(), operador };
     setSuprimentos((prev) => [...prev, registro]);
-    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Suprimento: ${registro.motivo}`, valor, hora: registro.hora }]);
+    setFinanceiro((prev) => [...prev, { id: novoId(), tipo: `Suprimento: ${registro.motivo}`, valor, hora: registro.hora }]);
     setSuprimentoInput({ valor: '', motivo: '' });
     setErro('');
     showToast('Suprimento registrado');
@@ -982,8 +1095,7 @@ export default function App() {
   function adicionarContaPagar({ descricao, fornecedorId, fornecedorNome, valorTotal, vencimentoInicial, qtdParcelas }) {
     const parcelas = gerarParcelas(valorTotal, vencimentoInicial, qtdParcelas);
     setContasPagar((prev) => {
-      let nextId = prev.length ? Math.max(...prev.map((c) => c.id)) + 1 : 1;
-      const novas = parcelas.map((p) => ({ id: nextId++, descricao, fornecedorId, fornecedorNome, pago: false, dataPagamento: null, ...p }));
+      const novas = parcelas.map((p) => ({ id: novoId(), descricao, fornecedorId, fornecedorNome, pago: false, dataPagamento: null, ...p }));
       return [...prev, ...novas];
     });
     showToast(parcelas.length > 1 ? `${parcelas.length} parcelas cadastradas` : 'Conta a pagar cadastrada');
@@ -992,7 +1104,7 @@ export default function App() {
     const conta = contasPagar.find((c) => c.id === id);
     if (!conta || conta.pago) return;
     setContasPagar((prev) => prev.map((c) => (c.id === id ? { ...c, pago: true, dataPagamento: Date.now() } : c)));
-    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Pagamento: ${conta.descricao}`, valor: -conta.valor, hora: Date.now() }]);
+    setFinanceiro((prev) => [...prev, { id: novoId(), tipo: `Pagamento: ${conta.descricao}`, valor: -conta.valor, hora: Date.now() }]);
     showToast('Conta paga e lançada no financeiro');
   }
   function excluirContaPagar(id) {
@@ -1002,8 +1114,7 @@ export default function App() {
   function adicionarContaReceber({ descricao, clienteId, clienteNome, valorTotal, vencimentoInicial, qtdParcelas }) {
     const parcelas = gerarParcelas(valorTotal, vencimentoInicial, qtdParcelas);
     setContasReceber((prev) => {
-      let nextId = prev.length ? Math.max(...prev.map((c) => c.id)) + 1 : 1;
-      const novas = parcelas.map((p) => ({ id: nextId++, descricao, clienteId, clienteNome, recebido: false, dataRecebimento: null, ...p }));
+      const novas = parcelas.map((p) => ({ id: novoId(), descricao, clienteId, clienteNome, recebido: false, dataRecebimento: null, ...p }));
       return [...prev, ...novas];
     });
     if (clienteId) {
@@ -1015,7 +1126,7 @@ export default function App() {
     const conta = contasReceber.find((c) => c.id === id);
     if (!conta || conta.recebido) return;
     setContasReceber((prev) => prev.map((c) => (c.id === id ? { ...c, recebido: true, dataRecebimento: Date.now() } : c)));
-    setFinanceiro((prev) => [...prev, { id: prev.length + 1, tipo: `Recebimento: ${conta.descricao}`, valor: conta.valor, hora: Date.now() }]);
+    setFinanceiro((prev) => [...prev, { id: novoId(), tipo: `Recebimento: ${conta.descricao}`, valor: conta.valor, hora: Date.now() }]);
     if (conta.clienteId) {
       setClientes((prev) => prev.map((cl) => (cl.id === conta.clienteId ? { ...cl, saldoDevedor: Math.max(0, (cl.saldoDevedor || 0) - conta.valor) } : cl)));
     }
@@ -1084,7 +1195,7 @@ export default function App() {
       showToast('Arquivo de backup inválido', 'alerta');
       return;
     }
-    aplicarEstado(dados);
+    aplicarEstado(normalizarEstadoSalvo({ ...dados }));
     registrarAuditoria({ acao: 'Restauração de Backup', detalhe: 'Dados substituídos por arquivo de backup' });
     showToast('Backup restaurado com sucesso');
   }
@@ -1180,7 +1291,7 @@ export default function App() {
     };
     setFinanceiro((prev) => [
       ...prev,
-      { id: prev.length + 1, tipo: 'Fechamento de Caixa', valor: contado, hora: Date.now() },
+      { id: novoId(), tipo: 'Fechamento de Caixa', valor: contado, hora: Date.now() },
     ]);
     setUltimoFechamento(fechamento);
     setCaixa({ aberto: false, valorAbertura: 0, dataAbertura: null, operador: null });
@@ -1196,12 +1307,57 @@ export default function App() {
     produtos, categorias, clientes, fornecedores, compras, vendas, trocas, devolucoes, financeiro,
     sangrias, suprimentos, contasPagar, contasReceber, movimentos, auditoria, usuarios, perfis, config, caixa, ultimoFechamento,
   };
+  const estadoRef = useRef(estadoPersistido);
+  estadoRef.current = estadoPersistido;
+  const SETTERS = {
+    produtos: setProdutos, categorias: setCategorias, clientes: setClientes, fornecedores: setFornecedores, compras: setCompras,
+    vendas: setVendas, trocas: setTrocas, devolucoes: setDevolucoes, financeiro: setFinanceiro, sangrias: setSangrias,
+    suprimentos: setSuprimentos, contasPagar: setContasPagar, contasReceber: setContasReceber, movimentos: setMovimentos,
+    auditoria: setAuditoria, usuarios: setUsuarios, perfis: setPerfis,
+    caixa: setCaixa, config: setConfig, ultimoFechamento: setUltimoFechamento,
+  };
   const deviceRef = useRef(obterDeviceId());
   const conectarRef = useRef(null);
-  const nuvem = useRef({ sb: null, canal: null, authSub: null, pronta: !CLOUD_ATIVA, ultimoJSON: null, veioDaNuvem: false, timer: null, cancelado: false });
+  const nuvem = useRef(null);
+  if (nuvem.current === null) {
+    nuvem.current = {
+      sb: null, canal: null, authSub: null, pronta: false, timer: null, poll: null, cancelado: false,
+      baseline: CLOUD_ATIVA ? lerBaseline() : {}, enviando: false, reenviar: false, cursor: null, cursorMs: 0,
+    };
+  }
   const [syncStatus, setSyncStatus] = useState(CLOUD_ATIVA ? 'conectando' : 'local');
   const [syncTick, setSyncTick] = useState(0);
   const [erroLocal, setErroLocal] = useState(false);
+
+  // Estoque = estoque-base + soma das movimentações (não sofre conflito entre dispositivos)
+  useEffect(() => {
+    const soma = {};
+    movimentos.forEach((m) => { soma[m.produtoId] = (soma[m.produtoId] || 0) + (m.quantidade || 0); });
+    let mudou = false;
+    const novos = produtos.map((p) => {
+      if (p.estoqueBase === undefined) return p;
+      const alvo = p.estoqueBase + (soma[p.id] || 0);
+      if (p.estoque === alvo) return p;
+      mudou = true;
+      return { ...p, estoque: alvo };
+    });
+    if (mudou) setProdutos(novos);
+  }, [movimentos, produtos]);
+
+  // Saldo devedor do cliente = soma das contas a receber em aberto
+  useEffect(() => {
+    const soma = {};
+    contasReceber.forEach((c) => { if (c.clienteId && !c.recebido) soma[c.clienteId] = (soma[c.clienteId] || 0) + (c.valor || 0); });
+    const arred = (n) => Math.round((n || 0) * 100) / 100;
+    let mudou = false;
+    const novos = clientes.map((cl) => {
+      const alvo = arred(soma[cl.id]);
+      if (arred(cl.saldoDevedor) === alvo) return cl;
+      mudou = true;
+      return { ...cl, saldoDevedor: alvo };
+    });
+    if (mudou) setClientes(novos);
+  }, [contasReceber, clientes]);
 
   // Migra senhas/respostas em texto puro (dados antigos ou backups antigos) para hash PBKDF2
   useEffect(() => {
@@ -1229,35 +1385,144 @@ export default function App() {
     return () => { cancelado = true; };
   }, [usuarios]);
 
-  // Salva localmente (sempre) e na nuvem (se ativa e conectada), com debounce
+  const DEPS_ESTADO = [produtos, categorias, clientes, fornecedores, compras, vendas, trocas, devolucoes, financeiro, sangrias, suprimentos, contasPagar, contasReceber, movimentos, auditoria, usuarios, perfis, config, caixa, ultimoFechamento];
+
+  // Cópia local (localStorage), sempre
   useEffect(() => {
-    const t = setTimeout(async () => {
-      const corpo = JSON.stringify(estadoPersistido);
-      const payload = { ...estadoPersistido, __device: deviceRef.current, __salvoEm: Date.now() };
+    const t = setTimeout(() => {
       try {
-        localStorage.setItem(STORE_KEY, JSON.stringify(payload));
+        localStorage.setItem(STORE_KEY, JSON.stringify({ ...estadoRef.current, __salvoEm: Date.now() }));
         setErroLocal(false);
       } catch {
         setErroLocal(true);
       }
-      const N = nuvem.current;
-      if (!CLOUD_ATIVA || !N.pronta || !N.sb) return;
-      if (N.veioDaNuvem) { N.veioDaNuvem = false; N.ultimoJSON = corpo; return; }
-      if (corpo === N.ultimoJSON) return;
-      setSyncStatus('sincronizando');
-      const { error } = await N.sb.from('pdv_state').upsert({ id: CLOUD_ID, data: payload, updated_at: new Date().toISOString() });
-      if (error) {
-        console.error('Falha ao enviar para a nuvem:', error);
-        setSyncStatus('erro');
-      } else {
-        N.ultimoJSON = corpo;
-        setSyncStatus('sincronizado');
-      }
-    }, 600);
+    }, 400);
     return () => clearTimeout(t);
-  }, [produtos, categorias, clientes, fornecedores, compras, vendas, trocas, devolucoes, financeiro, sangrias, suprimentos, contasPagar, contasReceber, movimentos, auditoria, usuarios, perfis, config, caixa, ultimoFechamento, syncTick]);
+  }, DEPS_ESTADO);
 
-  // Conexão com a nuvem (Supabase): carrega estado, assina mudanças em tempo real
+  // ----- Nuvem: sincronização por registro (cada venda, produto etc. é uma linha) -----
+  function mesclarLinhas(rows) {
+    const N = nuvem.current;
+    const locais = linhasDoEstado(estadoRef.current);
+    const porColecao = {};
+    let baselineMudou = false;
+
+    rows.forEach((row) => {
+      const key = `${row.collection}/${row.id}`;
+      const remoto = row.deleted || row.data == null ? null : row.data;
+      const rHash = remoto ? hashDe(remoto, row.collection) : 'DEL';
+      const local = locais.get(key);
+      const lHash = local ? local.hash : 'DEL';
+      const base = N.baseline[key] ?? 'DEL';
+
+      if (rHash === lHash) {
+        if (remoto) { if (N.baseline[key] !== rHash) { N.baseline[key] = rHash; baselineMudou = true; } }
+        else if (key in N.baseline) { delete N.baseline[key]; baselineMudou = true; }
+        return;
+      }
+      const localMudou = lHash !== base;
+      // exclusão registrada na nuvem de algo que este dispositivo nunca sincronizou (ex.: dados de exemplo) também prevalece
+      const remotoMudou = rHash !== base || (!remoto && !(key in N.baseline));
+      if (localMudou && !remotoMudou) return; // alteração local ainda não enviada: ela será enviada
+
+      // o remoto prevalece (local não mudou, ou houve conflito no mesmo registro)
+      if (!porColecao[row.collection]) porColecao[row.collection] = { ups: new Map(), dels: new Set() };
+      if (remoto) { porColecao[row.collection].ups.set(row.id, remoto); N.baseline[key] = rHash; }
+      else { porColecao[row.collection].dels.add(row.id); delete N.baseline[key]; }
+      baselineMudou = true;
+    });
+
+    Object.entries(porColecao).forEach(([colecao, { ups, dels }]) => {
+      if (colecao === 'singleton') {
+        ups.forEach((data, id) => {
+          if (id === 'caixa') setCaixa(data);
+          else if (id === 'config') setConfig({ ...CONFIG_PADRAO, ...data });
+          else if (id === 'ultimoFechamento') setUltimoFechamento(data);
+        });
+        return;
+      }
+      const campo = CHAVE_COLECAO[colecao];
+      const setter = SETTERS[colecao];
+      if (!campo || !setter) return;
+      setter((prev) => {
+        const resultado = [];
+        const vistos = new Set();
+        prev.forEach((item) => {
+          const id = String(item[campo]);
+          if (dels.has(id)) return;
+          if (ups.has(id)) { resultado.push(fundirRemoto(colecao, item, ups.get(id))); vistos.add(id); } else resultado.push(item);
+        });
+        ups.forEach((data, id) => { if (!vistos.has(id)) resultado.push(fundirRemoto(colecao, null, data)); });
+        return COLECOES_COM_HORA.includes(colecao) ? resultado.sort((a, b) => (a.hora || 0) - (b.hora || 0)) : resultado;
+      });
+    });
+
+    if (baselineMudou) salvarBaseline(N.baseline);
+  }
+
+  async function puxarMudancas(completo) {
+    const N = nuvem.current;
+    const linhas = [];
+    for (let de = 0; ; de += 1000) {
+      let q = N.sb.from('pdv_records').select('collection,id,data,deleted,updated_at,updated_by').eq('store_id', CLOUD_ID);
+      if (!completo && N.cursor) q = q.gte('updated_at', N.cursor);
+      const { data, error } = await q
+        .order('updated_at', { ascending: true }).order('collection', { ascending: true }).order('id', { ascending: true })
+        .range(de, de + 999);
+      if (error) throw error;
+      linhas.push(...data);
+      if (data.length < 1000) break;
+    }
+    const relevantes = completo
+      ? linhas
+      : linhas.filter((r) => !(r.updated_by === deviceRef.current && `${r.collection}/${r.id}` in N.baseline));
+    mesclarLinhas(relevantes);
+    let max = N.cursorMs;
+    linhas.forEach((r) => { const t = Date.parse(r.updated_at); if (t > max) max = t; });
+    if (max) { N.cursorMs = max; N.cursor = new Date(max - 5000).toISOString(); } // margem p/ commits tardios
+  }
+
+  async function enviarAlteracoes() {
+    const N = nuvem.current;
+    if (!CLOUD_ATIVA || !N.pronta || !N.sb) return;
+    if (N.enviando) { N.reenviar = true; return; }
+    N.enviando = true;
+    try {
+      const linhas = linhasDoEstado(estadoRef.current);
+      const ups = [];
+      linhas.forEach((l, key) => { if (!l.pendente && N.baseline[key] !== l.hash) ups.push([key, l]); });
+      const dels = Object.keys(N.baseline).filter((k) => !linhas.has(k));
+      if (!ups.length && !dels.length) { setSyncStatus('sincronizado'); return; }
+      setSyncStatus('sincronizando');
+      const registros = [
+        ...ups.map(([, l]) => ({ store_id: CLOUD_ID, collection: l.colecao, id: l.id, data: paraNuvem(l.colecao, l.item), deleted: false, updated_by: deviceRef.current })),
+        ...dels.map((k) => { const i = k.indexOf('/'); return { store_id: CLOUD_ID, collection: k.slice(0, i), id: k.slice(i + 1), data: null, deleted: true, updated_by: deviceRef.current }; }),
+      ];
+      for (let i = 0; i < registros.length; i += 200) {
+        const { error } = await N.sb.from('pdv_records').upsert(registros.slice(i, i + 200), { onConflict: 'store_id,collection,id' });
+        if (error) throw error;
+      }
+      ups.forEach(([key, l]) => { N.baseline[key] = l.hash; });
+      dels.forEach((k) => { delete N.baseline[k]; });
+      salvarBaseline(N.baseline);
+      setSyncStatus('sincronizado');
+    } catch (e) {
+      console.error('Falha ao enviar para a nuvem:', e);
+      setSyncStatus('erro');
+    } finally {
+      N.enviando = false;
+      if (N.reenviar) { N.reenviar = false; setSyncTick((x) => x + 1); }
+    }
+  }
+
+  // Envia alterações pendentes (debounce)
+  useEffect(() => {
+    if (!CLOUD_ATIVA) return undefined;
+    const t = setTimeout(() => { enviarAlteracoes(); }, 600);
+    return () => clearTimeout(t);
+  }, [...DEPS_ESTADO, syncTick]);
+
+  // Conexão: carrega tudo, assina mudanças em tempo real e confere de 20 em 20 s (rede de segurança)
   useEffect(() => {
     if (!CLOUD_ATIVA) return undefined;
     const N = nuvem.current;
@@ -1279,27 +1544,28 @@ export default function App() {
         const { data: sessao } = await N.sb.auth.getSession();
         if (!sessao.session) { N.pronta = false; setSyncStatus('precisa-login'); return; }
 
-        const { data, error } = await N.sb.from('pdv_state').select('data, updated_at').eq('id', CLOUD_ID).maybeSingle();
-        if (error) throw error;
+        await puxarMudancas(true);
         if (N.cancelado) return;
-        if (data && data.data) {
-          const remotoTs = new Date(data.updated_at).getTime();
-          if (remotoTs >= (SALVO.__salvoEm || 0)) { N.veioDaNuvem = true; aplicarEstado(data.data); }
-        }
         N.pronta = true;
+
         if (N.canal) N.sb.removeChannel(N.canal);
         N.canal = N.sb
           .channel(`pdv-${CLOUD_ID}`)
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'pdv_state', filter: `id=eq.${CLOUD_ID}` }, (payload) => {
-            const novo = payload.new;
-            if (!novo || !novo.data || novo.data.__device === deviceRef.current) return;
-            N.veioDaNuvem = true;
-            aplicarEstado(novo.data);
-            setSyncStatus('sincronizado');
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'pdv_records', filter: `store_id=eq.${CLOUD_ID}` }, (payload) => {
+            const nova = payload.new;
+            if (!nova || !nova.collection || nova.updated_by === deviceRef.current) return;
+            mesclarLinhas([nova]);
           })
-          .subscribe();
+          .subscribe((status) => { if (status === 'SUBSCRIBED') puxarMudancas(false).catch(() => {}); });
+
+        clearInterval(N.poll);
+        N.poll = setInterval(() => {
+          if (!N.pronta || document.hidden) return;
+          puxarMudancas(false).then(() => setSyncStatus((st) => (st === 'erro' ? 'sincronizado' : st))).catch(() => setSyncStatus('erro'));
+        }, 20000);
+
         setSyncStatus('sincronizado');
-        setSyncTick((x) => x + 1); // garante o envio do estado local caso a nuvem esteja vazia/defasada
+        setSyncTick((x) => x + 1); // envia o que só existe localmente
       } catch (e) {
         console.error('Sincronização com a nuvem:', e);
         setSyncStatus('erro');
@@ -1314,6 +1580,7 @@ export default function App() {
     return () => {
       N.cancelado = true;
       clearTimeout(N.timer);
+      clearInterval(N.poll);
       window.removeEventListener('online', aoVoltarOnline);
       if (N.canal && N.sb) N.sb.removeChannel(N.canal);
       if (N.authSub) N.authSub.unsubscribe();
@@ -1334,11 +1601,20 @@ export default function App() {
     const N = nuvem.current;
     if (N.sb) await N.sb.auth.signOut();
     N.pronta = false;
+    clearInterval(N.poll);
     setSyncStatus('precisa-login');
   }
-  function sincronizarAgora() {
-    nuvem.current.ultimoJSON = null;
-    setSyncTick((x) => x + 1);
+  async function sincronizarAgora() {
+    const N = nuvem.current;
+    try {
+      setSyncStatus('sincronizando');
+      await puxarMudancas(false);
+      setSyncTick((x) => x + 1);
+    } catch (e) {
+      console.error(e);
+      setSyncStatus('erro');
+    }
+    return N;
   }
 
   // ---------- LOGIN / CADASTRO / ESQUECI SENHA ----------
@@ -1919,7 +2195,7 @@ function NuvemPanel({ nuvem }) {
         </form>
       ) : (
         <div>
-          <p style={{ fontSize: 12.5, color: C.muted, margin: '8px 0 14px' }}>Alterações são enviadas automaticamente e as de outros dispositivos chegam em tempo real. Se dois dispositivos editarem ao mesmo tempo, vale a última gravação.</p>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '8px 0 14px' }}>Cada venda, compra, produto etc. é gravado como um registro separado, enviado automaticamente; as alterações de outros dispositivos chegam em tempo real. Dois caixas vendendo ao mesmo tempo não se sobrescrevem — só edições do mesmo registro (ex.: o mesmo produto) disputam, e vale a última.</p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={nuvem.sincronizar} style={btnPrimary}><Upload size={14} /> Sincronizar agora</button>
             <button type="button" onClick={nuvem.sair} style={btnGhostSolid}><LogOut size={14} /> Sair da nuvem</button>
@@ -3046,11 +3322,11 @@ function HistoricoComprasScreen({ compras }) {
         </div>
         {compras.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma compra registrada ainda.</div>}
         {[...compras].reverse().map((c) => {
-          const aberto = expandido === c.numero;
+          const aberto = expandido === c.id;
           return (
-            <div key={c.numero} className="table-row" style={{ borderTop: `1px solid ${C.borderLight}` }}>
+            <div key={c.id} className="table-row" style={{ borderTop: `1px solid ${C.borderLight}` }}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', fontSize: 13 }}>
-                <button onClick={() => setExpandido(aberto ? null : c.numero)} style={{ width: 60, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: 0 }}>
+                <button onClick={() => setExpandido(aberto ? null : c.id)} style={{ width: 60, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, padding: 0 }}>
                   #{String(c.numero).padStart(4, '0')}
                 </button>
                 <span style={{ flex: 1, color: C.muted, fontSize: 12.5 }}>{c.fornecedorNome} · {dataHora(c.hora)}</span>
@@ -3400,11 +3676,11 @@ function VendasScreen({ vendas, onCancelar }) {
         </div>
         {vendas.length === 0 && <div style={{ padding: 24, textAlign: 'center', color: C.muted, fontSize: 13 }}>Nenhuma venda registrada ainda.</div>}
         {[...vendas].reverse().map((v) => {
-          const aberto = expandido === v.numero;
+          const aberto = expandido === v.id;
           return (
-            <div key={v.numero} className="table-row" style={{ borderTop: `1px solid ${C.borderLight}` }}>
+            <div key={v.id} className="table-row" style={{ borderTop: `1px solid ${C.borderLight}` }}>
               <div style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', fontSize: 13 }}>
-                <button onClick={() => setExpandido(aberto ? null : v.numero)} style={{ width: 70, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.textDark, padding: 0 }}>
+                <button onClick={() => setExpandido(aberto ? null : v.id)} style={{ width: 70, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.textDark, padding: 0 }}>
                   #{String(v.numero).padStart(4, '0')}
                 </button>
                 <span style={{ flex: 1, color: C.muted, fontSize: 12.5 }}>{v.forma} · {dataHora(v.hora)}</span>
@@ -3416,7 +3692,7 @@ function VendasScreen({ vendas, onCancelar }) {
                 </span>
                 <span style={{ width: 90, textAlign: 'right' }}>
                   {!v.cancelada && (
-                    <button onClick={() => onCancelar(v.numero)} style={{ ...btnGhost, color: C.danger, fontSize: 11.5, justifyContent: 'flex-end', width: '100%' }}>
+                    <button onClick={() => onCancelar(v.id)} style={{ ...btnGhost, color: C.danger, fontSize: 11.5, justifyContent: 'flex-end', width: '100%' }}>
                       <Ban size={12} /> Cancelar
                     </button>
                   )}
@@ -3875,7 +4151,7 @@ function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImp
             <Cog size={15} color={C.primaryDark} />
             <span style={{ fontWeight: 700, fontSize: 13.5 }}>Sistema</span>
           </div>
-          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>PDV Terminal — versão 1.1. Os dados ficam salvos neste navegador (localStorage) e, se a nuvem estiver configurada, também no Supabase. Limpar os dados do navegador apaga a cópia local — mantenha backups.</p>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>PDV Terminal — versão 1.2. Os dados ficam salvos neste navegador (localStorage) e, se a nuvem estiver configurada, também no Supabase. Limpar os dados do navegador apaga a cópia local — mantenha backups.</p>
           <div style={{ borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
             <div style={{ fontWeight: 700, fontSize: 12.5, color: C.danger, marginBottom: 8 }}>Zona de risco</div>
             {!confirmarReset ? (
@@ -4191,7 +4467,7 @@ function TrocasScreen({ produtos, trocas, onConfirmar }) {
           <span style={{ width: 100, textAlign: 'right' }}>Diferença</span>
         </div>
         {[...trocas].reverse().map((t) => (
-          <div key={t.numero} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
+          <div key={t.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
             <span style={{ width: 60, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>#{String(t.numero).padStart(4, '0')}</span>
             <span style={{ flex: 1, color: C.muted }}>{t.qtdSaida}x {t.produtoSaida} → {t.qtdEntrada}x {t.produtoEntrada} · {dataHora(t.hora)}</span>
             <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: t.diferenca >= 0 ? C.accentDark : C.danger }}>{t.diferenca >= 0 ? '+' : ''}{fmt(t.diferenca)}</span>
@@ -4267,7 +4543,7 @@ function DevolucoesScreen({ vendas, devolucoes, onConfirmar }) {
           <span style={{ width: 100, textAlign: 'right' }}>Valor</span>
         </div>
         {[...devolucoes].reverse().map((d) => (
-          <div key={d.numero} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
+          <div key={d.id} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 12.5 }}>
             <span style={{ width: 60, fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>#{String(d.numero).padStart(4, '0')}</span>
             <span style={{ flex: 1, color: C.muted }}>{d.vendaNumero ? `Venda #${d.vendaNumero}` : 'Avulsa'} · {d.itens.length} item(ns) · {dataHora(d.hora)}</span>
             <span style={{ width: 100, textAlign: 'right', fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.danger }}>-{fmt(d.valorTotal)}</span>
