@@ -299,6 +299,18 @@ const PERFIS_INICIAIS = [
   { nome: 'Operador', descricao: 'Acesso ao dia a dia do caixa: PDV, vendas, clientes e caixa — sem estoque, compras, financeiro ou configurações.', areasPermitidas: ['dashboard', 'pdv', 'clientes', 'vendas', 'caixa'] },
 ];
 
+const ADMIN_PERFIL = 'Administrador';
+const usuarioEhAdmin = (u) => !!u && u.perfil === ADMIN_PERFIL;
+// Administrador sempre tem acesso total (não pode ser restringido nem se trancar para fora).
+// Demais: permissões individuais do usuário (se definidas) ou as do perfil.
+function areasEfetivas(u, perfis) {
+  if (!u) return [];
+  if (usuarioEhAdmin(u)) return AREAS_SISTEMA.map((a) => a.key);
+  const perfil = perfis.find((p) => p.nome === (u.perfil || 'Operador'));
+  return u.areasPermitidas ?? (perfil ? perfil.areasPermitidas : []);
+}
+const adminsAtivos = (lista, exceto) => lista.filter((u) => usuarioEhAdmin(u) && u.ativo !== false && u.login !== exceto).length;
+
 const FLOW = [
   { key: 'abrirCaixa', label: 'Abrir Caixa' },
   { key: 'pdv', label: 'PDV' },
@@ -650,7 +662,32 @@ export default function App() {
     setScreen('login');
   }
 
+  function souAdmin() {
+    return usuarioEhAdmin(usuarios.find((u) => u.login === operador));
+  }
+
+  function alterarPermissaoUsuario(login, area, permitido) {
+    if (!souAdmin()) { showToast('Somente administradores alteram permissões', 'alerta'); return; }
+    const alvo = usuarios.find((u) => u.login === login);
+    if (!alvo) return;
+    if (usuarioEhAdmin(alvo)) { showToast('Administradores têm acesso total e permanente', 'alerta'); return; }
+    const base = areasEfetivas(alvo, perfis);
+    const novas = permitido ? [...new Set([...base, area])] : base.filter((a) => a !== area);
+    setUsuarios((prev) => prev.map((u) => (u.login === login ? { ...u, areasPermitidas: novas } : u)));
+    registrarAuditoria({ acao: 'Permissão de Usuário', detalhe: `${login}: ${area} ${permitido ? 'liberado' : 'bloqueado'}` });
+    showToast('Permissões atualizadas');
+  }
+
+  function resetarPermissoesUsuario(login) {
+    if (!souAdmin()) { showToast('Somente administradores alteram permissões', 'alerta'); return; }
+    setUsuarios((prev) => prev.map((u) => (u.login === login ? { ...u, areasPermitidas: undefined } : u)));
+    registrarAuditoria({ acao: 'Permissão de Usuário', detalhe: `${login}: voltou a seguir o perfil` });
+    showToast('Usuário voltou a seguir as permissões do perfil');
+  }
+
   function alterarPermissaoPerfil(nomePerfil, area, permitido) {
+    if (!souAdmin()) { showToast('Somente administradores alteram permissões', 'alerta'); return; }
+    if (nomePerfil === ADMIN_PERFIL) { showToast('O perfil Administrador tem acesso total e não pode ser alterado', 'alerta'); return; }
     setPerfis((prev) => prev.map((p) => {
       if (p.nome !== nomePerfil) return p;
       const areas = permitido ? [...new Set([...p.areasPermitidas, area])] : p.areasPermitidas.filter((a) => a !== area);
@@ -1138,15 +1175,35 @@ export default function App() {
 
   // ---------- Usuários ----------
   function alternarAtivoUsuario(login) {
+    if (!souAdmin()) { showToast('Somente administradores gerenciam usuários', 'alerta'); return; }
+    const alvo = usuarios.find((u) => u.login === login);
+    if (alvo && usuarioEhAdmin(alvo) && alvo.ativo !== false && adminsAtivos(usuarios, login) === 0) {
+      showToast('Mantenha ao menos um administrador ativo', 'alerta');
+      return;
+    }
     setUsuarios((prev) => prev.map((u) => (u.login === login ? { ...u, ativo: u.ativo === false ? true : false } : u)));
     showToast('Status do usuário atualizado');
   }
   function alterarPerfilUsuario(login, perfil) {
-    setUsuarios((prev) => prev.map((u) => (u.login === login ? { ...u, perfil } : u)));
+    if (!souAdmin()) { showToast('Somente administradores gerenciam usuários', 'alerta'); return; }
+    const alvo = usuarios.find((u) => u.login === login);
+    if (alvo && usuarioEhAdmin(alvo) && perfil !== ADMIN_PERFIL && adminsAtivos(usuarios, login) === 0) {
+      showToast('Mantenha ao menos um administrador ativo', 'alerta');
+      return;
+    }
+    // ao trocar de perfil, o usuário passa a seguir as permissões do novo perfil
+    setUsuarios((prev) => prev.map((u) => (u.login === login ? { ...u, perfil, areasPermitidas: undefined } : u)));
+    registrarAuditoria({ acao: 'Alteração de Perfil', detalhe: `${login} → ${perfil}` });
     showToast('Perfil atualizado');
   }
   function excluirUsuario(login) {
+    if (!souAdmin()) { showToast('Somente administradores gerenciam usuários', 'alerta'); return; }
     if (login === operador) { showToast('Você não pode remover o usuário logado', 'alerta'); return; }
+    const alvo = usuarios.find((u) => u.login === login);
+    if (alvo && usuarioEhAdmin(alvo) && alvo.ativo !== false && adminsAtivos(usuarios, login) === 0) {
+      showToast('Mantenha ao menos um administrador ativo', 'alerta');
+      return;
+    }
     setUsuarios((prev) => prev.filter((u) => u.login !== login));
     registrarAuditoria({ acao: 'Exclusão de Usuário', detalhe: login });
     showToast('Usuário removido', 'alerta');
@@ -1756,8 +1813,9 @@ export default function App() {
 
   // ---------- SHELL (post-login) ----------
   const usuarioAtual = usuarios.find((u) => u.login === operador);
+  const ehAdmin = usuarioEhAdmin(usuarioAtual);
   const perfilAtual = perfis.find((p) => p.nome === (usuarioAtual?.perfil || 'Operador')) || perfis[perfis.length - 1];
-  const areasPermitidas = perfilAtual ? perfilAtual.areasPermitidas : [];
+  const areasPermitidas = areasEfetivas(usuarioAtual, perfis);
   const temPermissao = (area) => areasPermitidas.includes(area);
   const telaPermitida = !SCREEN_AREA[screen] || temPermissao(SCREEN_AREA[screen]);
 
@@ -1813,7 +1871,7 @@ export default function App() {
     { key: 'perfis', label: 'Perfis', icon: ShieldCheck },
     { key: 'auditoria', label: 'Auditoria', icon: History },
   ];
-  const configItems = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Nuvem', 'Sistema'].map((aba) => ({
+  const configItems = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Nuvem', ...(ehAdmin ? ['Permissões'] : []), 'Sistema'].map((aba) => ({
     key: `config-${aba}`, label: aba, icon: Settings,
     onClick: () => { setConfigAba(aba); setErro(''); setScreen('configuracoes'); },
     isActive: () => screen === 'configuracoes' && configAba === aba,
@@ -2057,7 +2115,7 @@ export default function App() {
           )}
 
           {screen === 'configuracoes' && (
-            <ConfiguracoesScreen aba={configAba} setAba={setConfigAba} config={config} setConfig={setConfig} onExportar={exportarBackup} onImportar={importarBackup} onResetar={resetarSistema} nuvem={{ ativa: CLOUD_ATIVA, status: syncStatus, erroLocal, entrar: entrarNuvem, sair: sairNuvem, sincronizar: sincronizarAgora }} />
+            <ConfiguracoesScreen aba={configAba} setAba={setConfigAba} config={config} setConfig={setConfig} onExportar={exportarBackup} onImportar={importarBackup} onResetar={resetarSistema} ehAdmin={ehAdmin} usuarios={usuarios} perfis={perfis} operadorAtual={operador} onAlterarPermissaoUsuario={alterarPermissaoUsuario} onResetarPermissoesUsuario={resetarPermissoesUsuario} onIrPerfis={() => setScreen('perfis')} nuvem={{ ativa: CLOUD_ATIVA, status: syncStatus, erroLocal, entrar: entrarNuvem, sair: sairNuvem, sincronizar: sincronizarAgora }} />
           )}
 
           {screen === 'produtos' && (
@@ -2108,9 +2166,9 @@ export default function App() {
 
           {screen === 'despesas' && <ReceitasDespesasScreen financeiro={financeiro} tipo="despesas" />}
 
-          {screen === 'usuarios' && <UsuariosScreen usuarios={usuarios} perfis={perfis} operadorAtual={operador} onToggleAtivo={alternarAtivoUsuario} onAlterarPerfil={alterarPerfilUsuario} onDelete={excluirUsuario} onAlterarSenha={alterarMinhaSenha} />}
+          {screen === 'usuarios' && <UsuariosScreen usuarios={usuarios} perfis={perfis} operadorAtual={operador} onToggleAtivo={alternarAtivoUsuario} onAlterarPerfil={alterarPerfilUsuario} onDelete={excluirUsuario} onAlterarSenha={alterarMinhaSenha} podeGerenciar={ehAdmin} />}
 
-          {screen === 'perfis' && <PerfisScreen usuarios={usuarios} perfis={perfis} onAlterarPermissao={alterarPermissaoPerfil} />}
+          {screen === 'perfis' && <PerfisScreen usuarios={usuarios} perfis={perfis} onAlterarPermissao={alterarPermissaoPerfil} podeEditar={ehAdmin} />}
 
           {screen === 'auditoria' && <AuditoriaScreen auditoria={auditoria} />}
           </>
@@ -2255,7 +2313,7 @@ function AccessDeniedScreen({ area, perfil, onVoltar }) {
       </div>
       <h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 17, margin: '0 0 6px' }}>Acesso restrito</h2>
       <p style={{ color: C.muted, fontSize: 13, margin: '0 0 18px' }}>
-        O perfil <strong>{perfil}</strong> não tem permissão para acessar <strong>{label}</strong>. Fale com um administrador para liberar essa área em Usuários → Perfis.
+        O perfil <strong>{perfil}</strong> não tem permissão para acessar <strong>{label}</strong>. Peça a um administrador para liberar essa área em Configurações → Permissões.
       </p>
       <button onClick={onVoltar} style={btnPrimary}><LayoutDashboard size={15} /> Voltar ao Dashboard</button>
     </div>
@@ -3989,11 +4047,11 @@ function RelatoriosScreen({ aba, setAba, vendas, sangrias, produtos, financeiro 
   );
 }
 
-function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImportar, onResetar, nuvem }) {
+function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImportar, onResetar, nuvem, ehAdmin, usuarios, perfis, operadorAtual, onAlterarPermissaoUsuario, onResetarPermissoesUsuario, onIrPerfis }) {
   const [local, setLocal] = useState(config);
   const [salvo, setSalvo] = useState(false);
   const [confirmarReset, setConfirmarReset] = useState(false);
-  const abas = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Nuvem', 'Sistema'];
+  const abas = ['Empresa', 'Impressora', 'Pagamentos', 'Pix', 'Backup', 'Nuvem', ...(ehAdmin ? ['Permissões'] : []), 'Sistema'];
 
   function salvar(e) {
     e.preventDefault();
@@ -4027,7 +4085,7 @@ function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImp
   );
 
   return (
-    <div style={{ maxWidth: 520 }}>
+    <div style={{ maxWidth: aba === 'Permissões' ? 860 : 520 }}>
       <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Configurações</h1>
       <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 16px' }}>Preferências gerais do sistema.</p>
 
@@ -4144,6 +4202,10 @@ function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImp
       )}
 
       {aba === 'Nuvem' && <NuvemPanel nuvem={nuvem} />}
+
+      {aba === 'Permissões' && (
+        <PermissoesPanel ehAdmin={ehAdmin} usuarios={usuarios} perfis={perfis} operadorAtual={operadorAtual} onToggle={onAlterarPermissaoUsuario} onReset={onResetarPermissoesUsuario} onIrPerfis={onIrPerfis} />
+      )}
 
       {aba === 'Sistema' && (
         <Card>
@@ -4803,11 +4865,14 @@ function SuprimentoScreen({ suprimentoInput, setSuprimentoInput, onConfirmar, hi
   );
 }
 
-function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlterarPerfil, onDelete, onAlterarSenha }) {
+function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlterarPerfil, onDelete, onAlterarSenha, podeGerenciar }) {
   return (
     <div style={{ maxWidth: 720 }}>
       <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Usuários</h1>
-      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Novos usuários são criados pela tela de login ("Cadastre-se"). O perfil define quais áreas cada um acessa — ajuste em <strong>Perfis</strong>.</p>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>
+        Novos usuários são criados pela tela de login ("Cadastre-se"). O perfil define o acesso padrão; para ajustar o que cada pessoa pode acessar, use <strong>Configurações → Permissões</strong>.
+        {!podeGerenciar && ' Somente administradores podem alterar usuários.'}
+      </p>
 
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <div style={{ display: 'flex', padding: '10px 16px', background: C.bgLight, fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.3 }}>
@@ -4818,19 +4883,22 @@ function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlte
         </div>
         {usuarios.map((u) => (
           <div key={u.login} className="table-row" style={{ display: 'flex', alignItems: 'center', padding: '9px 16px', borderTop: `1px solid ${C.borderLight}`, fontSize: 13, gap: 8 }}>
-            <span style={{ flex: 1, fontWeight: 500 }}>{u.login}{u.login === operadorAtual ? ' (você)' : ''}</span>
+            <span style={{ flex: 1, fontWeight: 500 }}>
+              {u.login}{u.login === operadorAtual ? ' (você)' : ''}
+              {u.areasPermitidas && !usuarioEhAdmin(u) && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: C.primaryDark, background: C.primarySoft, borderRadius: 99, padding: '2px 7px' }}>permissões personalizadas</span>}
+            </span>
             <span style={{ width: 150 }}>
-              <select value={u.perfil || 'Operador'} onChange={(e) => onAlterarPerfil(u.login, e.target.value)} style={{ border: `1px solid ${C.borderLight}`, borderRadius: 7, padding: '4px 6px', fontSize: 12 }}>
+              <select value={u.perfil || 'Operador'} disabled={!podeGerenciar} onChange={(e) => onAlterarPerfil(u.login, e.target.value)} style={{ border: `1px solid ${C.borderLight}`, borderRadius: 7, padding: '4px 6px', fontSize: 12 }}>
                 {perfis.map((p) => <option key={p.nome} value={p.nome}>{p.nome}</option>)}
               </select>
             </span>
             <span style={{ width: 90 }}>
-              <button onClick={() => onToggleAtivo(u.login)} style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 99, border: 'none', cursor: 'pointer', background: u.ativo === false ? C.dangerBg : 'rgba(45,212,191,0.12)', color: u.ativo === false ? C.danger : C.accentDark }}>
+              <button disabled={!podeGerenciar} onClick={() => onToggleAtivo(u.login)} style={{ fontSize: 10.5, fontWeight: 700, padding: '3px 8px', borderRadius: 99, border: 'none', cursor: podeGerenciar ? 'pointer' : 'not-allowed', background: u.ativo === false ? C.dangerBg : 'rgba(45,212,191,0.12)', color: u.ativo === false ? C.danger : C.accentDark }}>
                 {u.ativo === false ? 'Inativo' : 'Ativo'}
               </button>
             </span>
             <div style={{ width: 76, display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => onDelete(u.login)} style={iconBtn}><Trash2 size={13} color={C.danger} /></button>
+              <button disabled={!podeGerenciar} onClick={() => onDelete(u.login)} style={{ ...iconBtn, opacity: podeGerenciar ? 1 : 0.4 }}><Trash2 size={13} color={C.danger} /></button>
             </div>
           </div>
         ))}
@@ -4841,15 +4909,19 @@ function UsuariosScreen({ usuarios, perfis, operadorAtual, onToggleAtivo, onAlte
   );
 }
 
-function PerfisScreen({ usuarios, perfis, onAlterarPermissao }) {
+function PerfisScreen({ usuarios, perfis, onAlterarPermissao, podeEditar }) {
   return (
     <div style={{ maxWidth: 820 }}>
       <h1 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 22, margin: '0 0 4px' }}>Perfis</h1>
-      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>Marque as áreas que cada perfil pode acessar. A mudança vale para todos os usuários daquele perfil, na hora.</p>
+      <p style={{ color: C.muted, fontSize: 13.5, margin: '0 0 18px' }}>
+        Acesso padrão de cada perfil: vale para todos os usuários do perfil que não tenham permissões personalizadas.
+        {!podeEditar && ' Somente administradores podem editar.'}
+      </p>
 
       <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14 }}>
         {perfis.map((p) => {
           const qtd = usuarios.filter((u) => (u.perfil || 'Operador') === p.nome).length;
+          const fixo = p.nome === ADMIN_PERFIL;
           return (
             <Card key={p.nome}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -4857,18 +4929,76 @@ function PerfisScreen({ usuarios, perfis, onAlterarPermissao }) {
                 <span style={{ fontWeight: 700, fontSize: 14.5 }}>{p.nome}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 11, color: C.muted }}>{qtd} usuário(s)</span>
               </div>
-              <p style={{ fontSize: 12.5, color: C.muted, margin: '0 0 12px' }}>{p.descricao}</p>
+              <p style={{ fontSize: 12.5, color: C.muted, margin: '0 0 12px' }}>{fixo ? 'Acesso total e permanente a todas as áreas — não pode ser restringido.' : p.descricao}</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 10px' }}>
                 {AREAS_SISTEMA.map((area) => {
-                  const permitido = p.areasPermitidas.includes(area.key);
+                  const permitido = fixo || p.areasPermitidas.includes(area.key);
                   return (
-                    <label key={area.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, cursor: 'pointer', padding: '4px 0' }}>
-                      <input type="checkbox" checked={permitido} onChange={(e) => onAlterarPermissao(p.nome, area.key, e.target.checked)} />
+                    <label key={area.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, cursor: fixo || !podeEditar ? 'not-allowed' : 'pointer', padding: '4px 0', opacity: fixo || !podeEditar ? 0.7 : 1 }}>
+                      <input type="checkbox" checked={permitido} disabled={fixo || !podeEditar} onChange={(e) => onAlterarPermissao(p.nome, area.key, e.target.checked)} />
                       {area.label}
                     </label>
                   );
                 })}
               </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PermissoesPanel({ ehAdmin, usuarios, perfis, operadorAtual, onToggle, onReset, onIrPerfis }) {
+  if (!ehAdmin) {
+    return (
+      <Card style={{ textAlign: 'center', color: C.muted, fontSize: 13 }}>
+        <ShieldCheck size={20} color={C.danger} style={{ marginBottom: 6 }} /><br />Somente administradores podem gerenciar permissões.
+      </Card>
+    );
+  }
+  return (
+    <div>
+      <Card style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <ShieldCheck size={16} color={C.primaryDark} />
+          <span style={{ fontWeight: 700, fontSize: 14 }}>Permissões por usuário</span>
+          <button onClick={onIrPerfis} style={{ ...btnGhostSolid, marginLeft: 'auto', padding: '6px 12px', fontSize: 12 }}><UserCog size={13} /> Editar perfis padrão</button>
+        </div>
+        <p style={{ fontSize: 12.5, color: C.muted, margin: 0, lineHeight: 1.5 }}>
+          <strong>Administradores têm acesso total e permanente</strong> (não podem ser restringidos). Para os demais, marque as áreas que cada pessoa pode acessar.
+          Sem ajustes, cada usuário segue o perfil dele; ao personalizar, vale a sua escolha. As mudanças valem na hora.
+        </p>
+      </Card>
+
+      <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 14 }}>
+        {usuarios.map((u) => {
+          const admin = usuarioEhAdmin(u);
+          const areas = areasEfetivas(u, perfis);
+          const personalizado = !admin && !!u.areasPermitidas;
+          return (
+            <Card key={u.login}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                <User size={15} color={C.primaryDark} />
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{u.login}{u.login === operadorAtual ? ' (você)' : ''}</span>
+                {u.ativo === false && <span style={{ fontSize: 10, fontWeight: 700, color: C.danger, background: C.dangerBg, borderRadius: 99, padding: '2px 7px' }}>inativo</span>}
+                <span style={{ marginLeft: 'auto', fontSize: 10.5, fontWeight: 700, borderRadius: 99, padding: '3px 9px', background: admin ? 'rgba(45,212,191,0.12)' : personalizado ? C.primarySoft : C.bgLight, color: admin ? C.accentDark : personalizado ? C.primaryDark : C.muted }}>
+                  {admin ? 'Acesso total (fixo)' : personalizado ? 'Personalizado' : `Segue o perfil ${u.perfil || 'Operador'}`}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 10px', marginTop: 10 }}>
+                {AREAS_SISTEMA.map((area) => (
+                  <label key={area.key} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, padding: '3px 0', cursor: admin ? 'not-allowed' : 'pointer', opacity: admin ? 0.7 : 1 }}>
+                    <input type="checkbox" checked={areas.includes(area.key)} disabled={admin} onChange={(e) => onToggle(u.login, area.key, e.target.checked)} />
+                    {area.label}
+                  </label>
+                ))}
+              </div>
+              {personalizado && (
+                <button onClick={() => onReset(u.login)} style={{ ...btnGhost, marginTop: 10, color: C.primaryDark }}>
+                  <Undo2 size={12} /> Voltar a seguir o perfil
+                </button>
+              )}
             </Card>
           );
         })}
