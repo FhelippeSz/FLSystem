@@ -592,7 +592,7 @@ export default function App() {
   const valorEsperadoCaixa = caixa.valorAbertura + (totaisPorForma.Dinheiro || 0) - totalSangrias;
 
   const [categoriaAtiva, setCategoriaAtiva] = useState('Todos');
-  const categorias = useMemo(() => ['Todos', ...Array.from(new Set(produtos.map((p) => p.categoria)))], [produtos]);
+  const categoriasPdv = useMemo(() => ['Todos', ...Array.from(new Set([...categorias.map((c) => c.nome), ...produtos.map((p) => p.categoria)].filter(Boolean)))], [categorias, produtos]);
 
   const produtosFiltrados = useMemo(() => {
     let lista = produtos;
@@ -2077,7 +2077,7 @@ export default function App() {
           {screen === 'pdv' && (
             <PDVScreen
               produtos={produtosFiltrados} busca={busca} setBusca={setBusca} onBuscaSubmit={handleBuscaSubmit}
-              categorias={categorias} categoriaAtiva={categoriaAtiva} setCategoriaAtiva={setCategoriaAtiva}
+              categorias={categoriasPdv} categoriaAtiva={categoriaAtiva} setCategoriaAtiva={setCategoriaAtiva}
               carrinho={carrinho} onAdd={addProduto} onQtd={alterarQtd} onRemover={removerItem}
               total={totalCarrinho} onFinalizar={irParaPagamento}
             />
