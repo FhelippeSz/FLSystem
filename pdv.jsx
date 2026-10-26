@@ -299,6 +299,8 @@ const PERFIS_INICIAIS = [
   { nome: 'Operador', descricao: 'Acesso ao dia a dia do caixa: PDV, vendas, clientes e caixa — sem estoque, compras, financeiro ou configurações.', areasPermitidas: ['dashboard', 'pdv', 'clientes', 'vendas', 'caixa'] },
 ];
 
+const APP_VERSAO = '0.3.2';
+const APP_BUILD = '23/10/2026';
 const ADMIN_PERFIL = 'Administrador';
 const usuarioEhAdmin = (u) => !!u && u.perfil === ADMIN_PERFIL;
 // Administrador sempre tem acesso total (não pode ser restringido nem se trancar para fora).
@@ -1807,6 +1809,9 @@ export default function App() {
             </div>
           )}
         </div>
+        <div style={{ position: 'absolute', bottom: 14, left: 0, right: 0, textAlign: 'center', fontSize: 11, color: C.muted, zIndex: 1 }}>
+          PDV Terminal v{APP_VERSAO} · {APP_BUILD}
+        </div>
       </div>
     );
   }
@@ -2007,6 +2012,7 @@ export default function App() {
             <LogOut size={15} color={C.muted} />
           </button>
         </div>
+        <div style={{ padding: '0 14px 10px', fontSize: 10.5, color: C.muted }}>v{APP_VERSAO} · {APP_BUILD}</div>
       </div>
 
       {/* MAIN */}
@@ -4213,7 +4219,7 @@ function ConfiguracoesScreen({ aba, setAba, config, setConfig, onExportar, onImp
             <Cog size={15} color={C.primaryDark} />
             <span style={{ fontWeight: 700, fontSize: 13.5 }}>Sistema</span>
           </div>
-          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>PDV Terminal — versão 1.2. Os dados ficam salvos neste navegador (localStorage) e, se a nuvem estiver configurada, também no Supabase. Limpar os dados do navegador apaga a cópia local — mantenha backups.</p>
+          <p style={{ fontSize: 12.5, color: C.muted, margin: '4px 0 16px' }}>PDV Terminal — versão {APP_VERSAO} ({APP_BUILD}). Os dados ficam salvos neste navegador (localStorage) e, se a nuvem estiver configurada, também no Supabase. Limpar os dados do navegador apaga a cópia local — mantenha backups.</p>
           <div style={{ borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
             <div style={{ fontWeight: 700, fontSize: 12.5, color: C.danger, marginBottom: 8 }}>Zona de risco</div>
             {!confirmarReset ? (

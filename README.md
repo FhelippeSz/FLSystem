@@ -3,6 +3,16 @@
 PDV em React + Vite. Os dados são salvos automaticamente no navegador (localStorage) e,
 opcionalmente, sincronizados com o Supabase para usar os mesmos dados em vários dispositivos.
 
+## Atualizando o site no Vercel (checklist)
+1. Substitua **todos** os arquivos do projeto pelos do zip (inclusive `package.json`, `index.html` e a pasta `src/`).
+   Trocar só o `App.jsx` pode quebrar o build, porque versões novas usam dependências novas.
+2. A pasta que contém o `package.json` precisa ser a raiz do projeto no Vercel (ou ajuste *Root Directory* em Settings → General).
+3. Envie para o branch de produção (normalmente `main`): `git add . && git commit -m "atualiza" && git push`.
+4. Vercel → **Deployments**: o deploy mais recente deve estar **Ready**. Se estiver **Error**, abra *Build Logs*.
+   Enquanto o build falha, o Vercel continua exibindo a versão anterior.
+5. Confira a versão: a tela de login mostra `PDV Terminal v0.3.2 · 23/10/2026` (e o menu lateral, no rodapé).
+6. Se a versão estiver certa mas a tela parecer antiga, atualize com **Ctrl+Shift+R**.
+
 ## Rodar localmente
 ```bash
 npm install
